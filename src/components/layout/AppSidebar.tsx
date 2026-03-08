@@ -14,6 +14,7 @@ import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 const AppSidebar = () => {
   const location = useLocation();
   const { status, address, balance, balanceUsd, selectedWalletName, disconnect } = useWallet();
+  const { profile } = useProfile();
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [addFundsOpen, setAddFundsOpen] = useState(false);
   const [withdrawOpen, setWithdrawOpen] = useState(false);
