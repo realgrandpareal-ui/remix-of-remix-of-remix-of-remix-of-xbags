@@ -131,20 +131,24 @@ const WalletModal = ({ open, onClose }: WalletModalProps) => {
                     aria-label={`${isInstalled ? "Connect to" : "Install"} ${wallet.label}`}
                     className="w-full flex items-center gap-4 p-4 rounded-lg border border-border hover:border-primary/30 hover:bg-muted/50 transition-all disabled:opacity-50 disabled:cursor-not-allowed group"
                   >
-                    {wallet.icon.startsWith("http") ? (
-                      <img
-                        src={wallet.icon}
-                        alt={wallet.label}
-                        className="h-8 w-8 rounded-lg"
-                        onError={(e) => {
-                          (e.target as HTMLImageElement).style.display = "none";
-                        }}
-                      />
-                    ) : (
-                      <span className="text-2xl" aria-hidden="true">
-                        {wallet.icon}
-                      </span>
-                    )}
+                    <img
+                      src={wallet.icon}
+                      alt={wallet.label}
+                      className="h-8 w-8 rounded-lg"
+                      onError={(e) => {
+                        const el = e.target as HTMLImageElement;
+                        el.style.display = "none";
+                        // Show fallback text
+                        const fallback = el.nextElementSibling;
+                        if (fallback) (fallback as HTMLElement).style.display = "flex";
+                      }}
+                    />
+                    <span
+                      className="h-8 w-8 rounded-lg bg-primary/20 items-center justify-center text-sm font-bold text-primary shrink-0 hidden"
+                      aria-hidden="true"
+                    >
+                      {wallet.label.charAt(0)}
+                    </span>
                     <div className="flex-1 text-left">
                       <div className="text-sm font-semibold text-foreground group-hover:text-primary transition-colors">
                         {wallet.label}
