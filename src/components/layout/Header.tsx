@@ -1,0 +1,22 @@
+import { Sparkles, Wallet } from "lucide-react";
+import { APP_NAME } from "@/lib/constants";
+import { Button } from "@/components/ui/button";
+
+const Header = () => {
+  return (
+    <header className="md:hidden flex items-center justify-between px-4 py-3 border-b border-border bg-surface sticky top-0 z-50">
+      <div className="flex items-center gap-2">
+        <div className="h-7 w-7 rounded-md bg-primary flex items-center justify-center">
+          <Sparkles className="h-3.5 w-3.5 text-primary-foreground" />
+        </div>
+        <span className="text-base font-bold text-gradient">{APP_NAME}</span>
+      </div>
+      <Button variant="outline" size="sm" className="gap-2 border-primary/30 text-primary hover:bg-primary/10">
+        <Wallet className="h-4 w-4" />
+        <span className="text-xs">Connect</span>
+      </Button>
+    </header>
+  );
+};
+
+export default Header;
