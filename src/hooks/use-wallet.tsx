@@ -96,7 +96,6 @@ export function BagsFunWalletProvider({ children }: { children: ReactNode }) {
       const cached = localStorage.getItem(SOL_PRICE_CACHE_KEY);
       if (cached) {
         const { price, timestamp } = JSON.parse(cached);
-        // Cache valid for 5 minutes
         if (Date.now() - timestamp < 5 * 60 * 1000) return price;
       }
     } catch {}
@@ -110,7 +109,23 @@ export function BagsFunWalletProvider({ children }: { children: ReactNode }) {
   const [lastAttemptedWallet, setLastAttemptedWallet] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isSending, setIsSending] = useState(false);
+  const [wasConnecting, setWasConnecting] = useState(false);
   const balanceIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Track when connecting stops without becoming connected (= error/rejection)
+  useEffect(() => {
+    if (connecting) {
+      setWasConnecting(true);
+      setErrorMessage(null);
+    } else if (wasConnecting && !connected) {
+      // Was connecting but didn't connect — user rejected or error occurred
+      setWasConnecting(false);
+      setErrorMessage("Connection was rejected or failed.");
+    } else if (connected) {
+      setWasConnecting(false);
+      setErrorMessage(null);
+    }
+  }, [connecting, connected]);
 
   // Derive status
   const status: WalletStatus = connecting
@@ -140,7 +155,7 @@ export function BagsFunWalletProvider({ children }: { children: ReactNode }) {
         );
       }
     } catch {
-      // Silently fail - use cached price
+      // Silently fail
     }
   }, []);
 
@@ -164,12 +179,10 @@ export function BagsFunWalletProvider({ children }: { children: ReactNode }) {
       refreshBalance();
       fetchSolPrice();
 
-      // Refresh every 30 seconds
       balanceIntervalRef.current = setInterval(() => {
         refreshBalance();
       }, 30_000);
 
-      // Refresh price every 5 minutes
       const priceInterval = setInterval(fetchSolPrice, 5 * 60 * 1000);
 
       return () => {
@@ -191,7 +204,7 @@ export function BagsFunWalletProvider({ children }: { children: ReactNode }) {
     readyState: w.readyState,
   }));
 
-  // If no wallets detected, show known wallets
+  // If no wallets detected, show known wallets with install links
   const knownWallets: WalletInfo[] = wallets.length > 0 ? wallets : [
     {
       name: "Phantom",
@@ -240,26 +253,24 @@ export function BagsFunWalletProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      try {
-        select(w.adapter.name);
-      } catch (err: any) {
-        setErrorMessage(err?.message || "Connection failed");
-        toast.error("Connection failed", {
-          description: err?.message || "Please try again.",
-        });
-      }
+      // select() triggers the wallet adapter's connection flow
+      // Errors are handled by the onError callback in SolanaWalletProvider
+      // and by our wasConnecting state tracker above
+      select(w.adapter.name);
     },
     [solanaWallets, select]
   );
 
   // Show toast on successful connection
+  const prevConnectedRef = useRef(false);
   useEffect(() => {
-    if (connected && wallet) {
+    if (connected && wallet && !prevConnectedRef.current) {
       toast.success("Wallet connected!", {
         description: `Connected to ${wallet.adapter.name} on ${network === "mainnet-beta" ? "Mainnet" : "Devnet"}`,
       });
     }
-  }, [connected, wallet?.adapter.name]);
+    prevConnectedRef.current = connected;
+  }, [connected, wallet?.adapter.name, network]);
 
   const disconnect = useCallback(() => {
     solanaDisconnect();
@@ -288,13 +299,12 @@ export function BagsFunWalletProvider({ children }: { children: ReactNode }) {
       setNetworkState(net);
       localStorage.setItem(NETWORK_KEY, net);
       toast.info(`Switched to ${net === "mainnet-beta" ? "Mainnet" : "Devnet"}`);
-      // Note: Changing network requires reconnecting the provider
-      // In production, this would reload the app with new endpoint
     },
     []
   );
 
   const retryConnect = useCallback(() => {
+    setErrorMessage(null);
     if (lastAttemptedWallet) connect(lastAttemptedWallet);
   }, [lastAttemptedWallet, connect]);
 
@@ -342,12 +352,11 @@ export function BagsFunWalletProvider({ children }: { children: ReactNode }) {
           },
         });
 
-        // Refresh balance after send
         setTimeout(refreshBalance, 2000);
         return signature;
       } catch (err: any) {
         const msg = err?.message || "Transaction failed";
-        if (msg.includes("User rejected")) {
+        if (msg.includes("User rejected") || msg.includes("rejected the request")) {
           toast.error("Transaction cancelled", {
             description: "You rejected the transaction in your wallet.",
           });

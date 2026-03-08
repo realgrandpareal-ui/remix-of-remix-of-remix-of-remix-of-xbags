@@ -1,10 +1,12 @@
-import { ReactNode, useMemo } from "react";
+import { ReactNode, useMemo, useCallback } from "react";
 import {
   ConnectionProvider,
   WalletProvider,
 } from "@solana/wallet-adapter-react";
+import { WalletError } from "@solana/wallet-adapter-base";
 import { clusterApiUrl } from "@solana/web3.js";
 import type { WalletAdapterNetwork } from "@solana/wallet-adapter-base";
+import { toast } from "sonner";
 
 interface SolanaWalletProviderProps {
   children: ReactNode;
@@ -16,17 +18,42 @@ const SolanaWalletProvider = ({
   network = "mainnet-beta" as WalletAdapterNetwork,
 }: SolanaWalletProviderProps) => {
   const endpoint = useMemo(() => {
-    // Use public RPC endpoints
     if (network === "devnet") return clusterApiUrl("devnet");
     return clusterApiUrl("mainnet-beta");
   }, [network]);
 
-  // Wallets auto-detect from browser extensions (standard wallet adapter)
   const wallets = useMemo(() => [], []);
+
+  const onError = useCallback((error: WalletError) => {
+    const message = error.message || "Wallet error";
+
+    // Handle specific error types
+    if (
+      message.includes("User rejected") ||
+      message.includes("rejected the request") ||
+      (error as any)?.error?.code === 4001
+    ) {
+      toast.error("Connection cancelled", {
+        description: "You rejected the wallet connection request.",
+      });
+    } else if (message.includes("not found") || message.includes("not installed")) {
+      toast.error("Wallet not found", {
+        description: "Please install the wallet extension first.",
+      });
+    } else if (message.includes("Already processing")) {
+      // Ignore - duplicate request
+    } else {
+      toast.error("Wallet error", {
+        description: message,
+      });
+    }
+
+    console.warn("[Wallet Error]", error.name, message);
+  }, []);
 
   return (
     <ConnectionProvider endpoint={endpoint}>
-      <WalletProvider wallets={wallets} autoConnect>
+      <WalletProvider wallets={wallets} autoConnect onError={onError}>
         {children}
       </WalletProvider>
     </ConnectionProvider>
