@@ -14,42 +14,27 @@ const WalletModal = ({ open, onClose }: WalletModalProps) => {
   const modalRef = useRef<HTMLDivElement>(null);
   const firstFocusRef = useRef<HTMLButtonElement>(null);
 
-  // Close on Escape
   useEffect(() => {
     if (!open) return;
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
+    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, [open, onClose]);
 
-  // Focus trap
   useEffect(() => {
-    if (open && firstFocusRef.current) {
-      firstFocusRef.current.focus();
-    }
+    if (open && firstFocusRef.current) firstFocusRef.current.focus();
   }, [open]);
 
-  const handleBackdropClick = useCallback(
-    (e: React.MouseEvent) => {
-      if (e.target === e.currentTarget) onClose();
-    },
-    [onClose]
-  );
+  const handleBackdropClick = useCallback((e: React.MouseEvent) => {
+    if (e.target === e.currentTarget) onClose();
+  }, [onClose]);
 
   const handleSelect = async (walletName: WalletName) => {
     await connect(walletName);
-    // If connected successfully, close
-    // We check after because connect is async
-    // The status will be updated by the provider
   };
 
-  // Close modal after successful connection
   useEffect(() => {
-    if (status === "connected" && open) {
-      onClose();
-    }
+    if (status === "connected" && open) onClose();
   }, [status, open, onClose]);
 
   return (
@@ -66,20 +51,18 @@ const WalletModal = ({ open, onClose }: WalletModalProps) => {
           aria-modal="true"
           aria-label="Connect Wallet"
         >
-          {/* Backdrop */}
           <div className="absolute inset-0 bg-background/80 backdrop-blur-sm" />
 
-          {/* Modal */}
           <motion.div
             ref={modalRef}
             initial={{ opacity: 0, scale: 0.95, y: 10 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 10 }}
-            transition={{ duration: 0.2 }}
-            className="relative w-full max-w-sm rounded-xl bg-card border border-border shadow-modal p-6"
+            transition={{ duration: 0.25 }}
+            className="relative w-full max-w-sm rounded-2xl bg-card border border-border shadow-[0_10px_40px_rgba(0,0,0,0.8)] p-6"
           >
             {/* Header */}
-            <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center justify-between mb-2">
               <h2 className="text-lg font-bold text-foreground">Connect Wallet</h2>
               <button
                 ref={firstFocusRef}
@@ -90,8 +73,9 @@ const WalletModal = ({ open, onClose }: WalletModalProps) => {
                 <X className="h-4 w-4" />
               </button>
             </div>
+            <p className="text-sm text-muted-foreground mb-5">Choose your preferred wallet</p>
 
-            {/* Error state */}
+            {/* Error */}
             {status === "error" && errorMessage && (
               <motion.div
                 initial={{ opacity: 0, height: 0 }}
@@ -114,36 +98,32 @@ const WalletModal = ({ open, onClose }: WalletModalProps) => {
             )}
 
             {/* Wallet list */}
-            <div className="space-y-2" role="listbox" aria-label="Available wallets">
+            <div className="space-y-2.5" role="listbox" aria-label="Available wallets">
               {wallets.map((wallet) => {
                 const isConnecting = status === "connecting";
                 return (
                   <motion.button
                     key={wallet.name}
-                    whileHover={{ scale: 1.02 }}
+                    whileHover={{ scale: 1.01 }}
                     whileTap={{ scale: 0.98 }}
                     onClick={() => handleSelect(wallet.name)}
                     disabled={isConnecting}
                     role="option"
                     aria-selected={false}
                     aria-label={`Connect to ${wallet.label}${!wallet.installed ? " (not installed)" : ""}`}
-                    className="w-full flex items-center gap-4 p-4 rounded-lg border border-border hover:border-primary/30 hover:bg-muted/50 transition-all disabled:opacity-50 disabled:cursor-not-allowed group"
+                    className="w-full flex items-center gap-4 p-4 rounded-xl border border-border hover:border-primary/40 bg-card hover:bg-muted/30 transition-all disabled:opacity-50 disabled:cursor-not-allowed group"
                   >
-                    <span className="text-2xl" aria-hidden="true">{wallet.icon}</span>
+                    <span className="text-2xl w-10 h-10 flex items-center justify-center" aria-hidden="true">{wallet.icon}</span>
                     <div className="flex-1 text-left">
                       <div className="text-sm font-semibold text-foreground group-hover:text-primary transition-colors">
                         {wallet.label}
                       </div>
-                      {!wallet.installed && (
-                        <div className="text-xs text-muted-foreground">Not installed</div>
-                      )}
+                      <div className="text-xs text-muted-foreground">
+                        {wallet.installed ? wallet.description : "Not installed"}
+                      </div>
                     </div>
-                    {!wallet.installed && (
-                      <ExternalLink className="h-4 w-4 text-muted-foreground" />
-                    )}
-                    {wallet.installed && (
-                      <div className="h-2 w-2 rounded-full bg-success" />
-                    )}
+                    {!wallet.installed && <ExternalLink className="h-4 w-4 text-muted-foreground" />}
+                    {wallet.installed && <div className="h-2 w-2 rounded-full bg-success" />}
                   </motion.button>
                 );
               })}
@@ -156,7 +136,7 @@ const WalletModal = ({ open, onClose }: WalletModalProps) => {
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
-                  className="absolute inset-0 rounded-xl bg-card/90 backdrop-blur-sm flex flex-col items-center justify-center gap-4"
+                  className="absolute inset-0 rounded-2xl bg-card/95 backdrop-blur-sm flex flex-col items-center justify-center gap-4"
                 >
                   <div className="h-10 w-10 border-2 border-primary border-t-transparent rounded-full animate-spin" />
                   <p className="text-sm font-medium text-foreground">Connecting...</p>
@@ -165,8 +145,7 @@ const WalletModal = ({ open, onClose }: WalletModalProps) => {
               )}
             </AnimatePresence>
 
-            {/* Footer */}
-            <p className="text-xs text-muted-foreground text-center mt-6">
+            <p className="text-xs text-muted-foreground text-center mt-5">
               By connecting, you agree to our Terms of Service
             </p>
           </motion.div>
