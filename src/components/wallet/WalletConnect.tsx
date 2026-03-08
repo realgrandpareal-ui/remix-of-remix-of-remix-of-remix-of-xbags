@@ -105,13 +105,13 @@ const WalletConnect = ({ variant = "default" }: WalletConnectProps) => {
           aria-label="Wallet menu"
         >
           <div className="relative">
-            <div
-              className="h-5 w-5 rounded-full flex items-center justify-center text-[8px] font-bold text-foreground"
-              style={{ backgroundColor: avatarColor }}
-            >
-              {initials}
-            </div>
-            <div className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-success border border-surface" />
+            <Avatar className="h-5 w-5">
+              {profile?.avatar_url ? <AvatarImage src={profile.avatar_url} alt="" /> : null}
+              <AvatarFallback className="bg-primary/20 text-primary text-[8px] font-bold">
+                {profile?.display_name?.[0]?.toUpperCase() || address.slice(0, 2).toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
+            <div className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-success border border-background" />
           </div>
           <span className="text-[10px] font-medium">Wallet</span>
         </button>
