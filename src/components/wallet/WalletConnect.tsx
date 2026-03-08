@@ -94,8 +94,7 @@ const WalletConnect = ({ variant = "default" }: WalletConnectProps) => {
   }
 
   // Connected
-  const avatarColor = addressToColor(address);
-  const initials = address.slice(0, 2).toUpperCase();
+  const displayName = profile?.display_name || truncateAddress(address);
 
   if (variant === "mobile-icon") {
     return (
