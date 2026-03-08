@@ -1,8 +1,12 @@
+import { useState } from "react";
 import { motion } from "framer-motion";
-import { Wallet, ArrowUpRight, ArrowDownLeft, RefreshCw } from "lucide-react";
+import { Wallet, ArrowUpRight, ArrowDownLeft, RefreshCw, Plus, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useWallet, truncateAddress } from "@/hooks/use-wallet";
 import WalletConnect from "@/components/wallet/WalletConnect";
+import WalletBalance from "@/components/wallet/WalletBalance";
+import AddFundsModal from "@/components/wallet/AddFundsModal";
+import WithdrawModal from "@/components/wallet/WithdrawModal";
 
 const transactions = [
   { id: 1, type: "received", amount: "+2.5 SOL", from: "7xKX...gAsU", time: "2h ago" },
@@ -12,7 +16,9 @@ const transactions = [
 ];
 
 const WalletPage = () => {
-  const { status, address, balance, network } = useWallet();
+  const { status, address, balance, network, solscanUrl, refreshBalance } = useWallet();
+  const [addFundsOpen, setAddFundsOpen] = useState(false);
+  const [withdrawOpen, setWithdrawOpen] = useState(false);
 
   if (status !== "connected") {
     return (
@@ -38,19 +44,44 @@ const WalletPage = () => {
         animate={{ opacity: 1, y: 0 }}
         className="p-6 rounded-xl bg-gradient-to-br from-primary/10 to-transparent border border-primary/20 mb-6"
       >
-        <p className="text-sm text-muted-foreground mb-1">Total Balance</p>
-        <p className="text-4xl font-extrabold text-foreground mb-1">{balance?.toFixed(4)} SOL</p>
-        <p className="text-sm text-muted-foreground font-mono">{address ? truncateAddress(address) : ""} · {network === "mainnet-beta" ? "Mainnet" : "Devnet"}</p>
+        <WalletBalance variant="large" />
+        <p className="text-sm text-muted-foreground font-mono mt-2">
+          {address ? truncateAddress(address, 6, 4) : ""} · {network === "mainnet-beta" ? "Mainnet" : "Devnet"}
+        </p>
         <div className="flex gap-3 mt-6">
-          <Button size="sm" className="gap-2 bg-primary text-primary-foreground hover:bg-secondary">
+          <Button
+            size="sm"
+            className="gap-2 bg-primary text-primary-foreground hover:bg-secondary"
+            onClick={() => setWithdrawOpen(true)}
+          >
             <ArrowUpRight className="h-4 w-4" /> Send
           </Button>
-          <Button size="sm" variant="outline" className="gap-2 border-border hover:border-primary">
-            <ArrowDownLeft className="h-4 w-4" /> Receive
+          <Button
+            size="sm"
+            variant="outline"
+            className="gap-2 border-border hover:border-primary"
+            onClick={() => setAddFundsOpen(true)}
+          >
+            <Plus className="h-4 w-4" /> Add Funds
           </Button>
-          <Button size="sm" variant="outline" className="gap-2 border-border hover:border-primary">
+          <Button
+            size="sm"
+            variant="outline"
+            className="gap-2 border-border hover:border-primary"
+            onClick={refreshBalance}
+          >
             <RefreshCw className="h-4 w-4" /> Refresh
           </Button>
+          {solscanUrl && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="gap-2 border-border hover:border-primary"
+              onClick={() => window.open(solscanUrl, "_blank")}
+            >
+              <ExternalLink className="h-4 w-4" /> Solscan
+            </Button>
+          )}
         </div>
       </motion.div>
 
@@ -79,6 +110,9 @@ const WalletPage = () => {
           </motion.div>
         ))}
       </div>
+
+      <AddFundsModal open={addFundsOpen} onClose={() => setAddFundsOpen(false)} />
+      <WithdrawModal open={withdrawOpen} onClose={() => setWithdrawOpen(false)} />
     </div>
   );
 };

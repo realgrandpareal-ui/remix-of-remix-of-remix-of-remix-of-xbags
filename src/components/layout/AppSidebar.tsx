@@ -6,11 +6,15 @@ import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronUp, Plus, ArrowUpRight, LogOut, Wallet, BarChart3 } from "lucide-react";
 import WalletConnect from "@/components/wallet/WalletConnect";
+import AddFundsModal from "@/components/wallet/AddFundsModal";
+import WithdrawModal from "@/components/wallet/WithdrawModal";
 
 const AppSidebar = () => {
   const location = useLocation();
-  const { status, address, balance, selectedWallet, disconnect } = useWallet();
+  const { status, address, balance, balanceUsd, selectedWalletName, disconnect } = useWallet();
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [addFundsOpen, setAddFundsOpen] = useState(false);
+  const [withdrawOpen, setWithdrawOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -72,16 +76,16 @@ const AppSidebar = () => {
                 {address.slice(0, 2).toUpperCase()}
               </div>
               <div className="flex-1 min-w-0 text-left">
-                <div className="text-sm font-semibold text-foreground truncate">
+                <div className="text-sm font-semibold text-foreground truncate font-mono">
                   {truncateAddress(address)}
                 </div>
                 <div className="text-xs text-muted-foreground">
-                  {selectedWallet || "Wallet"}
+                  {selectedWalletName || "Wallet"}
                 </div>
               </div>
               <div className="text-right shrink-0">
                 <div className="text-sm font-semibold text-primary">
-                  ${((balance || 0) * 20).toFixed(2)}
+                  {balanceUsd !== null ? `$${balanceUsd.toFixed(2)}` : "—"}
                 </div>
                 <ChevronUp className={`h-3 w-3 text-muted-foreground ml-auto transition-transform ${userMenuOpen ? "" : "rotate-180"}`} />
               </div>
@@ -90,7 +94,7 @@ const AppSidebar = () => {
             {/* SOL balance bar */}
             <div className="flex items-center gap-3 px-3 mt-1 text-xs text-muted-foreground">
               <Wallet className="h-3 w-3" />
-              <span className="font-mono">{balance?.toFixed(2)} SOL</span>
+              <span className="font-mono">{balance?.toFixed(4)} SOL</span>
               <div className="flex-1" />
               <BarChart3 className="h-3 w-3 cursor-pointer hover:text-foreground transition-colors" />
             </div>
@@ -110,26 +114,29 @@ const AppSidebar = () => {
                       {address.slice(0, 2).toUpperCase()}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="text-sm font-semibold text-foreground truncate">{truncateAddress(address)}</div>
-                      <div className="text-xs text-muted-foreground">{selectedWallet}</div>
+                      <div className="text-sm font-semibold text-foreground truncate font-mono">{truncateAddress(address)}</div>
+                      <div className="text-xs text-muted-foreground">{selectedWalletName}</div>
                     </div>
                     <div className="h-4 w-4 rounded-full bg-primary/20 flex items-center justify-center">
                       <div className="h-2 w-2 rounded-full bg-primary" />
                     </div>
                   </div>
 
-                  <MenuItem icon={<Plus className="h-4 w-4" />} label="Add Funds" />
-                  <MenuItem icon={<ArrowUpRight className="h-4 w-4" />} label="Withdraw" />
+                  <MenuItem icon={<Plus className="h-4 w-4" />} label="Add Funds" onClick={() => { setAddFundsOpen(true); setUserMenuOpen(false); }} />
+                  <MenuItem icon={<ArrowUpRight className="h-4 w-4" />} label="Withdraw" onClick={() => { setWithdrawOpen(true); setUserMenuOpen(false); }} />
                   <div className="border-t border-border my-1" />
                   <MenuItem
                     icon={<LogOut className="h-4 w-4" />}
-                    label={`Log out`}
+                    label="Log out"
                     onClick={() => { disconnect(); setUserMenuOpen(false); }}
                     destructive
                   />
                 </motion.div>
               )}
             </AnimatePresence>
+
+            <AddFundsModal open={addFundsOpen} onClose={() => setAddFundsOpen(false)} />
+            <WithdrawModal open={withdrawOpen} onClose={() => setWithdrawOpen(false)} />
           </>
         ) : (
           <div className="p-3">
