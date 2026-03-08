@@ -14,6 +14,7 @@ interface WalletConnectProps {
 
 const WalletConnect = ({ variant = "default" }: WalletConnectProps) => {
   const { status, address } = useWallet();
+  const { profile } = useProfile();
   const [modalOpen, setModalOpen] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
