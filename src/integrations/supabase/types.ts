@@ -89,6 +89,41 @@ export type Database = {
           },
         ]
       }
+      post_unlocks: {
+        Row: {
+          amount_sol: number
+          id: string
+          post_id: string
+          transaction_signature: string | null
+          unlocked_at: string | null
+          user_wallet: string
+        }
+        Insert: {
+          amount_sol: number
+          id?: string
+          post_id: string
+          transaction_signature?: string | null
+          unlocked_at?: string | null
+          user_wallet: string
+        }
+        Update: {
+          amount_sol?: number
+          id?: string
+          post_id?: string
+          transaction_signature?: string | null
+          unlocked_at?: string | null
+          user_wallet?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "post_unlocks_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "posts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       posts: {
         Row: {
           comments_count: number | null
@@ -97,9 +132,13 @@ export type Database = {
           id: string
           is_locked: boolean | null
           likes_count: number | null
+          media_type: string | null
           media_urls: string[] | null
+          shares_count: number | null
           unlock_price_sol: number | null
+          updated_at: string | null
           user_id: string
+          views_count: number | null
         }
         Insert: {
           comments_count?: number | null
@@ -108,9 +147,13 @@ export type Database = {
           id?: string
           is_locked?: boolean | null
           likes_count?: number | null
+          media_type?: string | null
           media_urls?: string[] | null
+          shares_count?: number | null
           unlock_price_sol?: number | null
+          updated_at?: string | null
           user_id: string
+          views_count?: number | null
         }
         Update: {
           comments_count?: number | null
@@ -119,9 +162,13 @@ export type Database = {
           id?: string
           is_locked?: boolean | null
           likes_count?: number | null
+          media_type?: string | null
           media_urls?: string[] | null
+          shares_count?: number | null
           unlock_price_sol?: number | null
+          updated_at?: string | null
           user_id?: string
+          views_count?: number | null
         }
         Relationships: [
           {
