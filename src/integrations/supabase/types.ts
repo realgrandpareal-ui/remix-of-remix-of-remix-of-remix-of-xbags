@@ -131,9 +131,11 @@ export type Database = {
           created_at: string | null
           id: string
           is_locked: boolean | null
+          is_published: boolean | null
           likes_count: number | null
           media_type: string | null
           media_urls: string[] | null
+          scheduled_at: string | null
           shares_count: number | null
           unlock_price_sol: number | null
           updated_at: string | null
@@ -146,9 +148,11 @@ export type Database = {
           created_at?: string | null
           id?: string
           is_locked?: boolean | null
+          is_published?: boolean | null
           likes_count?: number | null
           media_type?: string | null
           media_urls?: string[] | null
+          scheduled_at?: string | null
           shares_count?: number | null
           unlock_price_sol?: number | null
           updated_at?: string | null
@@ -161,9 +165,11 @@ export type Database = {
           created_at?: string | null
           id?: string
           is_locked?: boolean | null
+          is_published?: boolean | null
           likes_count?: number | null
           media_type?: string | null
           media_urls?: string[] | null
+          scheduled_at?: string | null
           shares_count?: number | null
           unlock_price_sol?: number | null
           updated_at?: string | null
