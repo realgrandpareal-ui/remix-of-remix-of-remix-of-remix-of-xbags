@@ -2,16 +2,19 @@ import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
 import { NAV_ITEMS, APP_NAME } from "@/lib/constants";
 import { useWallet, truncateAddress } from "@/hooks/use-wallet";
+import { useProfile } from "@/hooks/use-profile";
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronUp, Plus, ArrowUpRight, LogOut, Wallet, BarChart3 } from "lucide-react";
 import WalletConnect from "@/components/wallet/WalletConnect";
 import AddFundsModal from "@/components/wallet/AddFundsModal";
 import WithdrawModal from "@/components/wallet/WithdrawModal";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 
 const AppSidebar = () => {
   const location = useLocation();
   const { status, address, balance, balanceUsd, selectedWalletName, disconnect } = useWallet();
+  const { profile } = useProfile();
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [addFundsOpen, setAddFundsOpen] = useState(false);
   const [withdrawOpen, setWithdrawOpen] = useState(false);
@@ -72,15 +75,20 @@ const AppSidebar = () => {
               onClick={() => setUserMenuOpen(!userMenuOpen)}
               className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-muted transition-colors"
             >
-              <div className="h-10 w-10 rounded-full bg-primary/20 flex items-center justify-center text-sm font-bold text-primary shrink-0">
-                {address.slice(0, 2).toUpperCase()}
-              </div>
+              <Avatar className="h-10 w-10 shrink-0">
+                {profile?.avatar_url ? (
+                  <AvatarImage src={profile.avatar_url} alt={profile.display_name || ""} />
+                ) : null}
+                <AvatarFallback className="bg-primary/20 text-primary text-sm font-bold">
+                  {profile?.display_name?.[0]?.toUpperCase() || address.slice(0, 2).toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
               <div className="flex-1 min-w-0 text-left">
-                <div className="text-sm font-semibold text-foreground truncate font-mono">
-                  {truncateAddress(address)}
+                <div className="text-sm font-semibold text-foreground truncate">
+                  {profile?.display_name || truncateAddress(address)}
                 </div>
-                <div className="text-xs text-muted-foreground">
-                  {selectedWalletName || "Wallet"}
+                <div className="text-xs text-muted-foreground truncate">
+                  @{profile?.username || truncateAddress(address)}
                 </div>
               </div>
               <div className="text-right shrink-0">
@@ -110,12 +118,17 @@ const AppSidebar = () => {
                   className="absolute bottom-full left-3 right-3 mb-2 z-50 rounded-xl bg-card border border-border shadow-modal p-2"
                 >
                   <div className="flex items-center gap-3 p-2.5 rounded-lg bg-muted/50 mb-1">
-                    <div className="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold text-primary">
-                      {address.slice(0, 2).toUpperCase()}
-                    </div>
+                    <Avatar className="h-8 w-8">
+                      {profile?.avatar_url ? (
+                        <AvatarImage src={profile.avatar_url} alt={profile.display_name || ""} />
+                      ) : null}
+                      <AvatarFallback className="bg-primary/20 text-primary text-xs font-bold">
+                        {profile?.display_name?.[0]?.toUpperCase() || address.slice(0, 2).toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
                     <div className="flex-1 min-w-0">
-                      <div className="text-sm font-semibold text-foreground truncate font-mono">{truncateAddress(address)}</div>
-                      <div className="text-xs text-muted-foreground">{selectedWalletName}</div>
+                      <div className="text-sm font-semibold text-foreground truncate">{profile?.display_name || truncateAddress(address)}</div>
+                      <div className="text-xs text-muted-foreground">@{profile?.username || selectedWalletName}</div>
                     </div>
                     <div className="h-4 w-4 rounded-full bg-primary/20 flex items-center justify-center">
                       <div className="h-2 w-2 rounded-full bg-primary" />

@@ -6,11 +6,10 @@ import {
   Globe,
   User,
   Settings,
-  Eye,
-  EyeOff,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { useWallet, truncateAddress, addressToColor } from "@/hooks/use-wallet";
+import { useWallet, truncateAddress } from "@/hooks/use-wallet";
+import { useProfile } from "@/hooks/use-profile";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import WalletBalance from "./WalletBalance";
 import { Link } from "react-router-dom";
 
@@ -28,14 +27,11 @@ const WalletDropdown = ({ open, onClose, position = "top" }: WalletDropdownProps
     copyAddress,
     setNetwork,
     disconnect,
-    explorerUrl,
     solscanUrl,
   } = useWallet();
+  const { profile } = useProfile();
 
   if (!address) return null;
-
-  const avatarColor = addressToColor(address);
-  const initials = address.slice(0, 2).toUpperCase();
 
   const positionClass =
     position === "bottom" ? "bottom-full mb-2 right-0" : "top-full mt-2 right-0";
@@ -59,20 +55,22 @@ const WalletDropdown = ({ open, onClose, position = "top" }: WalletDropdownProps
         >
           {/* Profile header */}
           <div className="flex items-center gap-3 pb-3 border-b border-border mb-3">
-            <div
-              className="h-10 w-10 rounded-full flex items-center justify-center text-sm font-bold text-foreground"
-              style={{ backgroundColor: avatarColor }}
-            >
-              {initials}
-            </div>
+            <Avatar className="h-10 w-10">
+              {profile?.avatar_url ? (
+                <AvatarImage src={profile.avatar_url} alt={profile.display_name || ""} />
+              ) : null}
+              <AvatarFallback className="bg-primary/20 text-primary text-sm font-bold">
+                {profile?.display_name?.[0]?.toUpperCase() || address.slice(0, 2).toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
             <div className="flex-1 min-w-0">
-              <div className="text-sm font-semibold text-foreground truncate font-mono">
-                {truncateAddress(address, 6, 4)}
+              <div className="text-sm font-semibold text-foreground truncate">
+                {profile?.display_name || truncateAddress(address, 6, 4)}
               </div>
               <div className="flex items-center gap-1.5 mt-0.5">
                 <div className="h-1.5 w-1.5 rounded-full bg-success" />
                 <span className="text-xs text-muted-foreground">
-                  {selectedWalletName} · {network === "mainnet-beta" ? "Mainnet" : "Devnet"}
+                  @{profile?.username || selectedWalletName} · {network === "mainnet-beta" ? "Mainnet" : "Devnet"}
                 </span>
               </div>
             </div>

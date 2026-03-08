@@ -2,7 +2,9 @@ import { useState, useRef, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Wallet, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useWallet, truncateAddress, addressToColor } from "@/hooks/use-wallet";
+import { useWallet, truncateAddress } from "@/hooks/use-wallet";
+import { useProfile } from "@/hooks/use-profile";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import WalletModal from "./WalletModal";
 import WalletDropdown from "./WalletDropdown";
 
@@ -12,6 +14,7 @@ interface WalletConnectProps {
 
 const WalletConnect = ({ variant = "default" }: WalletConnectProps) => {
   const { status, address } = useWallet();
+  const { profile } = useProfile();
   const [modalOpen, setModalOpen] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -91,8 +94,7 @@ const WalletConnect = ({ variant = "default" }: WalletConnectProps) => {
   }
 
   // Connected
-  const avatarColor = addressToColor(address);
-  const initials = address.slice(0, 2).toUpperCase();
+  const displayName = profile?.display_name || truncateAddress(address);
 
   if (variant === "mobile-icon") {
     return (
@@ -103,13 +105,13 @@ const WalletConnect = ({ variant = "default" }: WalletConnectProps) => {
           aria-label="Wallet menu"
         >
           <div className="relative">
-            <div
-              className="h-5 w-5 rounded-full flex items-center justify-center text-[8px] font-bold text-foreground"
-              style={{ backgroundColor: avatarColor }}
-            >
-              {initials}
-            </div>
-            <div className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-success border border-surface" />
+            <Avatar className="h-5 w-5">
+              {profile?.avatar_url ? <AvatarImage src={profile.avatar_url} alt="" /> : null}
+              <AvatarFallback className="bg-primary/20 text-primary text-[8px] font-bold">
+                {profile?.display_name?.[0]?.toUpperCase() || address.slice(0, 2).toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
+            <div className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-success border border-background" />
           </div>
           <span className="text-[10px] font-medium">Wallet</span>
         </button>
@@ -130,16 +132,16 @@ const WalletConnect = ({ variant = "default" }: WalletConnectProps) => {
         aria-expanded={dropdownOpen}
       >
         <div className="relative">
-          <div
-            className="h-6 w-6 rounded-full flex items-center justify-center text-[10px] font-bold text-foreground"
-            style={{ backgroundColor: avatarColor }}
-          >
-            {initials}
-          </div>
+          <Avatar className="h-6 w-6">
+            {profile?.avatar_url ? <AvatarImage src={profile.avatar_url} alt="" /> : null}
+            <AvatarFallback className="bg-primary/20 text-primary text-[10px] font-bold">
+              {profile?.display_name?.[0]?.toUpperCase() || address.slice(0, 2).toUpperCase()}
+            </AvatarFallback>
+          </Avatar>
           <div className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-success border-2 border-card" />
         </div>
-        <span className="text-sm font-medium text-foreground font-mono">
-          {truncateAddress(address)}
+        <span className="text-sm font-medium text-foreground">
+          {displayName}
         </span>
         <ChevronDown
           className={`h-3.5 w-3.5 text-muted-foreground transition-transform ${
