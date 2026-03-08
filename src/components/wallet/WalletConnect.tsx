@@ -132,16 +132,16 @@ const WalletConnect = ({ variant = "default" }: WalletConnectProps) => {
         aria-expanded={dropdownOpen}
       >
         <div className="relative">
-          <div
-            className="h-6 w-6 rounded-full flex items-center justify-center text-[10px] font-bold text-foreground"
-            style={{ backgroundColor: avatarColor }}
-          >
-            {initials}
-          </div>
+          <Avatar className="h-6 w-6">
+            {profile?.avatar_url ? <AvatarImage src={profile.avatar_url} alt="" /> : null}
+            <AvatarFallback className="bg-primary/20 text-primary text-[10px] font-bold">
+              {profile?.display_name?.[0]?.toUpperCase() || address.slice(0, 2).toUpperCase()}
+            </AvatarFallback>
+          </Avatar>
           <div className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-success border-2 border-card" />
         </div>
-        <span className="text-sm font-medium text-foreground font-mono">
-          {truncateAddress(address)}
+        <span className="text-sm font-medium text-foreground">
+          {displayName}
         </span>
         <ChevronDown
           className={`h-3.5 w-3.5 text-muted-foreground transition-transform ${
