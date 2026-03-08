@@ -50,6 +50,7 @@ const App = () => (
               </Routes>
             </AppLayout>
           </BrowserRouter>
+          </ProfileProvider>
         </BagsFunWalletProvider>
       </SolanaWalletProvider>
     </TooltipProvider>
