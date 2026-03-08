@@ -28,8 +28,10 @@ const App = () => (
     <TooltipProvider>
       <SolanaWalletProvider>
         <BagsFunWalletProvider>
+          <ProfileProvider>
           <Toaster />
           <Sonner />
+          <ProfileSetupModal />
           <BrowserRouter>
             <AppLayout>
               <Routes>
