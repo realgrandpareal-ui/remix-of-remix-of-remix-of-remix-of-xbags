@@ -2,6 +2,7 @@ import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
 import { NAV_ITEMS, APP_NAME } from "@/lib/constants";
 import { Sparkles } from "lucide-react";
+import WalletConnect from "@/components/wallet/WalletConnect";
 
 const AppSidebar = () => {
   const location = useLocation();
@@ -38,19 +39,7 @@ const AppSidebar = () => {
       </nav>
 
       <div className="p-4 border-t border-border">
-        <NavLink
-          to="/profile/me"
-          className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-          activeClassName="bg-primary/10 text-primary font-medium"
-        >
-          <div className="h-8 w-8 rounded-full bg-secondary/20 flex items-center justify-center text-secondary font-semibold text-xs">
-            CS
-          </div>
-          <div className="flex flex-col">
-            <span className="font-medium text-foreground text-sm">Creator</span>
-            <span className="text-xs text-muted-foreground">@creator</span>
-          </div>
-        </NavLink>
+        <WalletConnect variant="default" />
       </div>
     </aside>
   );

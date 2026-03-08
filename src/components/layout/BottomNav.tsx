@@ -1,14 +1,18 @@
 import { NavLink } from "@/components/NavLink";
 import { MOBILE_NAV_ITEMS } from "@/lib/constants";
 import { useLocation } from "react-router-dom";
+import WalletConnect from "@/components/wallet/WalletConnect";
 
 const BottomNav = () => {
   const location = useLocation();
 
+  // Replace the last item (Profile) with wallet on mobile
+  const navItems = MOBILE_NAV_ITEMS.slice(0, 4);
+
   return (
     <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-surface/95 backdrop-blur-lg">
       <div className="flex items-center justify-around py-2">
-        {MOBILE_NAV_ITEMS.map((item) => {
+        {navItems.map((item) => {
           const isActive = location.pathname === item.url;
           return (
             <NavLink
@@ -25,6 +29,7 @@ const BottomNav = () => {
             </NavLink>
           );
         })}
+        <WalletConnect variant="mobile-icon" />
       </div>
     </nav>
   );

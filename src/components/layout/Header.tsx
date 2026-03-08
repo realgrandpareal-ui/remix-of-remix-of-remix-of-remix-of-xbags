@@ -1,6 +1,6 @@
-import { Sparkles, Wallet } from "lucide-react";
+import { Sparkles } from "lucide-react";
 import { APP_NAME } from "@/lib/constants";
-import { Button } from "@/components/ui/button";
+import WalletConnect from "@/components/wallet/WalletConnect";
 
 const Header = () => {
   return (
@@ -11,10 +11,7 @@ const Header = () => {
         </div>
         <span className="text-base font-bold text-gradient">{APP_NAME}</span>
       </div>
-      <Button variant="outline" size="sm" className="gap-2 border-primary/30 text-primary hover:bg-primary/10">
-        <Wallet className="h-4 w-4" />
-        <span className="text-xs">Connect</span>
-      </Button>
+      <WalletConnect variant="header" />
     </header>
   );
 };
