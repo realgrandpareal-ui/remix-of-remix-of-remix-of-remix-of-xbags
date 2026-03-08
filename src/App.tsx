@@ -5,6 +5,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import SolanaWalletProvider from "@/components/wallet/SolanaWalletProvider";
 import { BagsFunWalletProvider } from "@/hooks/use-wallet";
+import { ProfileProvider } from "@/hooks/use-profile";
+import ProfileSetupModal from "@/components/profile/ProfileSetupModal";
 import AppLayout from "@/components/layout/AppLayout";
 import FeedPage from "./pages/FeedPage";
 import ExplorePage from "./pages/ExplorePage";
