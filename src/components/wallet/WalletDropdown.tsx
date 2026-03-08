@@ -27,14 +27,11 @@ const WalletDropdown = ({ open, onClose, position = "top" }: WalletDropdownProps
     copyAddress,
     setNetwork,
     disconnect,
-    explorerUrl,
     solscanUrl,
   } = useWallet();
+  const { profile } = useProfile();
 
   if (!address) return null;
-
-  const avatarColor = addressToColor(address);
-  const initials = address.slice(0, 2).toUpperCase();
 
   const positionClass =
     position === "bottom" ? "bottom-full mb-2 right-0" : "top-full mt-2 right-0";
