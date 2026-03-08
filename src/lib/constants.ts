@@ -6,16 +6,12 @@ import {
   Trophy,
   BarChart3,
   Users,
-  HelpCircle,
-  Newspaper,
   MessageSquare,
   Settings,
-  Wallet,
 } from "lucide-react";
 
 export const NAV_ITEMS = [
   { title: "Home", url: "/", icon: Home },
-  { title: "Feed", url: "/feed", icon: Newspaper },
   { title: "Explore", url: "/explore", icon: Compass },
   { title: "Messages", url: "/messages", icon: MessageSquare },
   { title: "Notifications", url: "/notifications", icon: Bell },

@@ -5,7 +5,6 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { WalletProvider } from "@/hooks/use-wallet";
 import AppLayout from "@/components/layout/AppLayout";
-import Index from "./pages/Index";
 import FeedPage from "./pages/FeedPage";
 import ExplorePage from "./pages/ExplorePage";
 import NotificationsPage from "./pages/NotificationsPage";
@@ -30,8 +29,7 @@ const App = () => (
         <BrowserRouter>
           <AppLayout>
             <Routes>
-              <Route path="/" element={<Index />} />
-              <Route path="/feed" element={<FeedPage />} />
+              <Route path="/" element={<FeedPage />} />
               <Route path="/explore" element={<ExplorePage />} />
               <Route path="/messages" element={<MessagesPage />} />
               <Route path="/notifications" element={<NotificationsPage />} />
