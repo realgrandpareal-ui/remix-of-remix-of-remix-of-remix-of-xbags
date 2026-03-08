@@ -2,12 +2,14 @@ import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
 import { NAV_ITEMS, APP_NAME } from "@/lib/constants";
 import { useWallet, truncateAddress } from "@/hooks/use-wallet";
+import { useProfile } from "@/hooks/use-profile";
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronUp, Plus, ArrowUpRight, LogOut, Wallet, BarChart3 } from "lucide-react";
 import WalletConnect from "@/components/wallet/WalletConnect";
 import AddFundsModal from "@/components/wallet/AddFundsModal";
 import WithdrawModal from "@/components/wallet/WithdrawModal";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 
 const AppSidebar = () => {
   const location = useLocation();
