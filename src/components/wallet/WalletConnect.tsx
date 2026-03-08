@@ -2,7 +2,9 @@ import { useState, useRef, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Wallet, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useWallet, truncateAddress, addressToColor } from "@/hooks/use-wallet";
+import { useWallet, truncateAddress } from "@/hooks/use-wallet";
+import { useProfile } from "@/hooks/use-profile";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import WalletModal from "./WalletModal";
 import WalletDropdown from "./WalletDropdown";
 
