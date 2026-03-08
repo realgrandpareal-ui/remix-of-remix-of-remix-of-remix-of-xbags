@@ -54,7 +54,7 @@ const Index = () => {
             </p>
 
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-              <WalletConnect />
+              <WalletConnect variant="default" />
               <Link to="/explore">
                 <Button variant="outline" size="lg" className="gap-2 border-border hover:bg-muted">
                   Explore Creators <ArrowRight className="h-4 w-4" />
