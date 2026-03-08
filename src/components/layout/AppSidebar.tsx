@@ -75,15 +75,20 @@ const AppSidebar = () => {
               onClick={() => setUserMenuOpen(!userMenuOpen)}
               className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-muted transition-colors"
             >
-              <div className="h-10 w-10 rounded-full bg-primary/20 flex items-center justify-center text-sm font-bold text-primary shrink-0">
-                {address.slice(0, 2).toUpperCase()}
-              </div>
+              <Avatar className="h-10 w-10 shrink-0">
+                {profile?.avatar_url ? (
+                  <AvatarImage src={profile.avatar_url} alt={profile.display_name || ""} />
+                ) : null}
+                <AvatarFallback className="bg-primary/20 text-primary text-sm font-bold">
+                  {profile?.display_name?.[0]?.toUpperCase() || address.slice(0, 2).toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
               <div className="flex-1 min-w-0 text-left">
-                <div className="text-sm font-semibold text-foreground truncate font-mono">
-                  {truncateAddress(address)}
+                <div className="text-sm font-semibold text-foreground truncate">
+                  {profile?.display_name || truncateAddress(address)}
                 </div>
-                <div className="text-xs text-muted-foreground">
-                  {selectedWalletName || "Wallet"}
+                <div className="text-xs text-muted-foreground truncate">
+                  @{profile?.username || truncateAddress(address)}
                 </div>
               </div>
               <div className="text-right shrink-0">
