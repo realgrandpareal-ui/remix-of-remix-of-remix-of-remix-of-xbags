@@ -2,7 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
 
 @layer base {
   :root {
@@ -12,60 +12,64 @@
     --card-foreground: 0 0% 9%;
     --popover: 0 0% 100%;
     --popover-foreground: 0 0% 9%;
-    --primary: 166 100% 42%;
-    --primary-foreground: 0 0% 2%;
-    --secondary: 263 84% 58%;
-    --secondary-foreground: 0 0% 100%;
+    --primary: 150 100% 50%;
+    --primary-foreground: 0 0% 0%;
+    --secondary: 150 100% 40%;
+    --secondary-foreground: 0 0% 0%;
     --muted: 0 0% 90%;
     --muted-foreground: 0 0% 53%;
-    --accent: 166 100% 42%;
-    --accent-foreground: 0 0% 2%;
-    --destructive: 0 84% 60%;
+    --accent: 150 100% 50%;
+    --accent-foreground: 0 0% 0%;
+    --destructive: 344 100% 60%;
     --destructive-foreground: 0 0% 100%;
-    --success: 160 84% 39%;
-    --success-foreground: 0 0% 100%;
-    --warning: 38 92% 50%;
-    --warning-foreground: 0 0% 2%;
+    --success: 150 100% 50%;
+    --success-foreground: 0 0% 0%;
+    --warning: 43 100% 50%;
+    --warning-foreground: 0 0% 0%;
+    --info: 195 100% 50%;
+    --info-foreground: 0 0% 0%;
     --border: 0 0% 85%;
     --input: 0 0% 85%;
-    --ring: 166 100% 42%;
+    --ring: 150 100% 50%;
     --radius: 0.75rem;
     --surface: 0 0% 96%;
 
     --shadow-card: 0 4px 6px rgba(0,0,0,0.1);
     --shadow-modal: 0 20px 40px rgba(0,0,0,0.2);
-    --shadow-glow: 0 0 20px rgba(0,212,170,0.15);
+    --shadow-glow: 0 0 20px rgba(0, 255, 136, 0.15);
   }
 
   .dark {
-    --background: 0 0% 4%;
+    --background: 0 0% 0%;
     --foreground: 0 0% 100%;
-    --card: 0 0% 10%;
+    --card: 0 0% 7%;
     --card-foreground: 0 0% 100%;
-    --popover: 0 0% 10%;
+    --popover: 0 0% 7%;
     --popover-foreground: 0 0% 100%;
-    --primary: 166 100% 42%;
-    --primary-foreground: 0 0% 2%;
-    --secondary: 263 84% 58%;
-    --secondary-foreground: 0 0% 100%;
-    --muted: 0 0% 16%;
+    --primary: 150 100% 50%;
+    --primary-foreground: 0 0% 0%;
+    --secondary: 150 100% 40%;
+    --secondary-foreground: 0 0% 0%;
+    --muted: 0 0% 10%;
     --muted-foreground: 0 0% 53%;
-    --accent: 166 100% 42%;
-    --accent-foreground: 0 0% 2%;
-    --destructive: 0 84% 60%;
+    --accent: 150 100% 50%;
+    --accent-foreground: 0 0% 0%;
+    --destructive: 344 100% 60%;
     --destructive-foreground: 0 0% 100%;
-    --success: 160 84% 39%;
-    --success-foreground: 0 0% 100%;
-    --warning: 38 92% 50%;
-    --warning-foreground: 0 0% 2%;
-    --border: 0 0% 16%;
-    --input: 0 0% 16%;
-    --ring: 166 100% 42%;
-    --surface: 0 0% 10%;
+    --success: 150 100% 50%;
+    --success-foreground: 0 0% 0%;
+    --warning: 43 100% 50%;
+    --warning-foreground: 0 0% 0%;
+    --info: 195 100% 50%;
+    --info-foreground: 0 0% 0%;
+    --border: 0 0% 10%;
+    --input: 0 0% 10%;
+    --ring: 150 100% 50%;
+    --surface: 0 0% 4%;
 
-    --shadow-card: 0 4px 6px rgba(0,0,0,0.3);
+    --shadow-card: 0 4px 6px rgba(0,0,0,0.5);
     --shadow-modal: 0 20px 40px rgba(0,0,0,0.5);
-    --shadow-glow: 0 0 20px rgba(0,212,170,0.3);
+    --shadow-glow: 0 0 20px rgba(0, 255, 136, 0.3);
   }
 }
 
@@ -80,6 +84,7 @@
   }
   body {
     @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
   }
   h1, h2, h3, h4, h5, h6 {
     @apply font-bold tracking-tight;
@@ -101,5 +106,21 @@
   }
   .text-gradient {
     @apply bg-clip-text text-transparent bg-gradient-to-r from-primary to-secondary;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply bg-primary hover:bg-secondary text-primary-foreground font-semibold
+           px-6 py-3 rounded-lg transition-all duration-200
+           hover:shadow-[0_0_30px_rgba(0,255,136,0.4)] active:scale-95;
+  }
+  .btn-secondary {
+    @apply bg-card border border-border
+           hover:border-primary text-foreground font-medium
+           px-6 py-3 rounded-lg transition-all duration-200;
+  }
+  .card-hover {
+    @apply hover:border-primary/50 transition-all duration-200;
   }
 }

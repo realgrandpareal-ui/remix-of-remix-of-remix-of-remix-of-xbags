@@ -14,6 +14,9 @@ import LeaderboardPage from "./pages/LeaderboardPage";
 import AnalyticsPage from "./pages/AnalyticsPage";
 import ReferralPage from "./pages/ReferralPage";
 import HowItWorksPage from "./pages/HowItWorksPage";
+import MessagesPage from "./pages/MessagesPage";
+import SettingsPage from "./pages/SettingsPage";
+import WalletPage from "./pages/WalletPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -30,11 +33,14 @@ const App = () => (
               <Route path="/" element={<Index />} />
               <Route path="/feed" element={<FeedPage />} />
               <Route path="/explore" element={<ExplorePage />} />
+              <Route path="/messages" element={<MessagesPage />} />
               <Route path="/notifications" element={<NotificationsPage />} />
               <Route path="/profile/:username" element={<ProfilePage />} />
               <Route path="/leaderboard" element={<LeaderboardPage />} />
               <Route path="/analytics" element={<AnalyticsPage />} />
               <Route path="/referral" element={<ReferralPage />} />
+              <Route path="/settings" element={<SettingsPage />} />
+              <Route path="/wallet" element={<WalletPage />} />
               <Route path="/how-it-works" element={<HowItWorksPage />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
