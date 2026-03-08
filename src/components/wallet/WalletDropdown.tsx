@@ -6,11 +6,10 @@ import {
   Globe,
   User,
   Settings,
-  Eye,
-  EyeOff,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { useWallet, truncateAddress, addressToColor } from "@/hooks/use-wallet";
+import { useWallet, truncateAddress } from "@/hooks/use-wallet";
+import { useProfile } from "@/hooks/use-profile";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import WalletBalance from "./WalletBalance";
 import { Link } from "react-router-dom";
 
