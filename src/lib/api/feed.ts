@@ -129,14 +129,6 @@ export const feedAPI = {
       .from("post_likes")
       .insert({ post_id: postId, user_id: userId } as any);
     if (error && !error.message.includes("duplicate")) throw error;
-
-    await supabase.rpc("increment_post_count" as any, { post_id: postId, field: "likes_count" }).catch(() => {
-      // Fallback: manual update
-      return supabase
-        .from("posts")
-        .update({ likes_count: supabase.rpc("" as any) } as any)
-        .eq("id", postId);
-    });
   },
 
   async unlikePost(postId: string, userId: string) {
