@@ -50,6 +50,7 @@ export const feedAPI = {
     let query = supabase
       .from("posts")
       .select("*, profiles!posts_user_id_fkey(id, username, display_name, avatar_url, wallet_address)")
+      .eq("is_published", true)
       .range((page - 1) * limit, page * limit - 1);
 
     switch (tab) {
