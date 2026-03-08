@@ -1,7 +1,7 @@
 import { useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, ExternalLink, AlertCircle, RefreshCw } from "lucide-react";
-import { useWallet, WalletName } from "@/hooks/use-wallet";
+import { X, ExternalLink, AlertCircle, RefreshCw, Download } from "lucide-react";
+import { useWallet } from "@/hooks/use-wallet";
 import { Button } from "@/components/ui/button";
 
 interface WalletModalProps {
@@ -9,12 +9,17 @@ interface WalletModalProps {
   onClose: () => void;
 }
 
+const INSTALL_URLS: Record<string, string> = {
+  Phantom: "https://phantom.app/",
+  Solflare: "https://solflare.com/",
+  Backpack: "https://backpack.app/",
+};
+
 const WalletModal = ({ open, onClose }: WalletModalProps) => {
   const { wallets, connect, status, errorMessage, retryConnect } = useWallet();
   const modalRef = useRef<HTMLDivElement>(null);
   const firstFocusRef = useRef<HTMLButtonElement>(null);
 
-  // Close on Escape
   useEffect(() => {
     if (!open) return;
     const handler = (e: KeyboardEvent) => {
@@ -24,11 +29,8 @@ const WalletModal = ({ open, onClose }: WalletModalProps) => {
     return () => window.removeEventListener("keydown", handler);
   }, [open, onClose]);
 
-  // Focus trap
   useEffect(() => {
-    if (open && firstFocusRef.current) {
-      firstFocusRef.current.focus();
-    }
+    if (open && firstFocusRef.current) firstFocusRef.current.focus();
   }, [open]);
 
   const handleBackdropClick = useCallback(
@@ -38,18 +40,12 @@ const WalletModal = ({ open, onClose }: WalletModalProps) => {
     [onClose]
   );
 
-  const handleSelect = async (walletName: WalletName) => {
+  const handleSelect = async (walletName: string) => {
     await connect(walletName);
-    // If connected successfully, close
-    // We check after because connect is async
-    // The status will be updated by the provider
   };
 
-  // Close modal after successful connection
   useEffect(() => {
-    if (status === "connected" && open) {
-      onClose();
-    }
+    if (status === "connected" && open) onClose();
   }, [status, open, onClose]);
 
   return (
@@ -66,10 +62,8 @@ const WalletModal = ({ open, onClose }: WalletModalProps) => {
           aria-modal="true"
           aria-label="Connect Wallet"
         >
-          {/* Backdrop */}
           <div className="absolute inset-0 bg-background/80 backdrop-blur-sm" />
 
-          {/* Modal */}
           <motion.div
             ref={modalRef}
             initial={{ opacity: 0, scale: 0.95, y: 10 }}
@@ -79,7 +73,7 @@ const WalletModal = ({ open, onClose }: WalletModalProps) => {
             className="relative w-full max-w-sm rounded-xl bg-card border border-border shadow-modal p-6"
           >
             {/* Header */}
-            <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center justify-between mb-2">
               <h2 className="text-lg font-bold text-foreground">Connect Wallet</h2>
               <button
                 ref={firstFocusRef}
@@ -90,6 +84,9 @@ const WalletModal = ({ open, onClose }: WalletModalProps) => {
                 <X className="h-4 w-4" />
               </button>
             </div>
+            <p className="text-xs text-muted-foreground mb-5">
+              Connect a Solana wallet to get started with bags.fun
+            </p>
 
             {/* Error state */}
             {status === "error" && errorMessage && (
@@ -117,32 +114,52 @@ const WalletModal = ({ open, onClose }: WalletModalProps) => {
             <div className="space-y-2" role="listbox" aria-label="Available wallets">
               {wallets.map((wallet) => {
                 const isConnecting = status === "connecting";
+                const isInstalled = wallet.installed;
                 return (
                   <motion.button
                     key={wallet.name}
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    onClick={() => handleSelect(wallet.name)}
+                    whileHover={{ scale: 1.01 }}
+                    whileTap={{ scale: 0.99 }}
+                    onClick={() =>
+                      isInstalled
+                        ? handleSelect(wallet.name)
+                        : window.open(INSTALL_URLS[wallet.name] || "#", "_blank")
+                    }
                     disabled={isConnecting}
                     role="option"
                     aria-selected={false}
-                    aria-label={`Connect to ${wallet.label}${!wallet.installed ? " (not installed)" : ""}`}
+                    aria-label={`${isInstalled ? "Connect to" : "Install"} ${wallet.label}`}
                     className="w-full flex items-center gap-4 p-4 rounded-lg border border-border hover:border-primary/30 hover:bg-muted/50 transition-all disabled:opacity-50 disabled:cursor-not-allowed group"
                   >
-                    <span className="text-2xl" aria-hidden="true">{wallet.icon}</span>
+                    {wallet.icon.startsWith("http") ? (
+                      <img
+                        src={wallet.icon}
+                        alt={wallet.label}
+                        className="h-8 w-8 rounded-lg"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).style.display = "none";
+                        }}
+                      />
+                    ) : (
+                      <span className="text-2xl" aria-hidden="true">
+                        {wallet.icon}
+                      </span>
+                    )}
                     <div className="flex-1 text-left">
                       <div className="text-sm font-semibold text-foreground group-hover:text-primary transition-colors">
                         {wallet.label}
                       </div>
-                      {!wallet.installed && (
-                        <div className="text-xs text-muted-foreground">Not installed</div>
+                      {!isInstalled && (
+                        <div className="text-xs text-muted-foreground flex items-center gap-1">
+                          <Download className="h-3 w-3" />
+                          Not installed — click to install
+                        </div>
                       )}
                     </div>
-                    {!wallet.installed && (
-                      <ExternalLink className="h-4 w-4 text-muted-foreground" />
-                    )}
-                    {wallet.installed && (
+                    {isInstalled ? (
                       <div className="h-2 w-2 rounded-full bg-success" />
+                    ) : (
+                      <ExternalLink className="h-4 w-4 text-muted-foreground" />
                     )}
                   </motion.button>
                 );
@@ -165,7 +182,6 @@ const WalletModal = ({ open, onClose }: WalletModalProps) => {
               )}
             </AnimatePresence>
 
-            {/* Footer */}
             <p className="text-xs text-muted-foreground text-center mt-6">
               By connecting, you agree to our Terms of Service
             </p>
