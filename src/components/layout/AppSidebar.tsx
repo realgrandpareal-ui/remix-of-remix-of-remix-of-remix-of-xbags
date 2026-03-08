@@ -1,7 +1,6 @@
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
 import { NAV_ITEMS, APP_NAME } from "@/lib/constants";
-import { Sparkles } from "lucide-react";
 import WalletConnect from "@/components/wallet/WalletConnect";
 
 const AppSidebar = () => {
@@ -11,7 +10,7 @@ const AppSidebar = () => {
     <aside className="hidden md:flex flex-col w-64 border-r border-border bg-surface h-screen sticky top-0 shrink-0">
       <div className="flex items-center gap-2 px-6 py-5 border-b border-border">
         <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center">
-          <Sparkles className="h-4 w-4 text-primary-foreground" />
+          <span className="text-sm font-black text-primary-foreground">B</span>
         </div>
         <span className="text-lg font-bold text-gradient">{APP_NAME}</span>
       </div>

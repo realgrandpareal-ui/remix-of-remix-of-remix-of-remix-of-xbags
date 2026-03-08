@@ -38,10 +38,9 @@ interface WalletContextType {
   retryConnect: () => void;
 }
 
-const STORAGE_KEY = "creatorspace_wallet";
-const BALANCE_KEY = "creatorspace_show_balance";
+const STORAGE_KEY = "bagsfun_wallet";
+const BALANCE_KEY = "bagsfun_show_balance";
 
-// Simple deterministic "identicon" colors from address
 export function addressToColor(address: string): string {
   let hash = 0;
   for (let i = 0; i < address.length; i++) {
@@ -56,7 +55,6 @@ export function truncateAddress(address: string): string {
   return `${address.slice(0, 4)}...${address.slice(-4)}`;
 }
 
-// Generate a fake Solana-like address
 function generateMockAddress(): string {
   const chars = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
   let result = "";
@@ -67,27 +65,9 @@ function generateMockAddress(): string {
 }
 
 const WALLETS: WalletInfo[] = [
-  {
-    name: "phantom",
-    label: "Phantom",
-    icon: "👻",
-    installUrl: "https://phantom.app/",
-    installed: true, // mock: assume installed
-  },
-  {
-    name: "solflare",
-    label: "Solflare",
-    icon: "🔆",
-    installUrl: "https://solflare.com/",
-    installed: true,
-  },
-  {
-    name: "backpack",
-    label: "Backpack",
-    icon: "🎒",
-    installUrl: "https://backpack.app/",
-    installed: false, // mock: not installed
-  },
+  { name: "phantom", label: "Phantom", icon: "👻", installUrl: "https://phantom.app/", installed: true },
+  { name: "solflare", label: "Solflare", icon: "🔆", installUrl: "https://solflare.com/", installed: true },
+  { name: "backpack", label: "Backpack", icon: "🎒", installUrl: "https://backpack.app/", installed: false },
 ];
 
 const WalletContext = createContext<WalletContextType | null>(null);
@@ -97,14 +77,11 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const [address, setAddress] = useState<string | null>(null);
   const [balance, setBalance] = useState<number | null>(null);
   const [network, setNetworkState] = useState<NetworkType>("mainnet-beta");
-  const [showBalance, setShowBalance] = useState(() => {
-    return localStorage.getItem(BALANCE_KEY) === "true";
-  });
+  const [showBalance, setShowBalance] = useState(() => localStorage.getItem(BALANCE_KEY) === "true");
   const [selectedWallet, setSelectedWallet] = useState<WalletName | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [lastAttemptedWallet, setLastAttemptedWallet] = useState<WalletName | null>(null);
 
-  // Auto-reconnect on mount
   useEffect(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
@@ -126,54 +103,33 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const connect = useCallback(async (walletName: WalletName) => {
     const wallet = WALLETS.find((w) => w.name === walletName);
     if (!wallet) return;
-
     setLastAttemptedWallet(walletName);
     setErrorMessage(null);
-
     if (!wallet.installed) {
       setErrorMessage(`${wallet.label} is not installed.`);
       setStatus("error");
       toast.error(`${wallet.label} not found`, {
         description: "Please install it from the official website.",
-        action: {
-          label: "Install",
-          onClick: () => window.open(wallet.installUrl, "_blank"),
-        },
+        action: { label: "Install", onClick: () => window.open(wallet.installUrl, "_blank") },
       });
       return;
     }
-
     setStatus("connecting");
     setSelectedWallet(walletName);
-
-    // Simulate connection delay
     await new Promise((r) => setTimeout(r, 1200 + Math.random() * 800));
-
-    // Simulate random rejection (10% chance)
     if (Math.random() < 0.1) {
       setStatus("error");
       setErrorMessage("Connection rejected by user.");
-      toast.error("Connection rejected", {
-        description: "You declined the wallet connection request.",
-      });
+      toast.error("Connection rejected", { description: "You declined the wallet connection request." });
       return;
     }
-
     const newAddress = generateMockAddress();
     const newBalance = parseFloat((Math.random() * 50 + 0.5).toFixed(4));
-
     setAddress(newAddress);
     setBalance(newBalance);
     setStatus("connected");
-
-    localStorage.setItem(
-      STORAGE_KEY,
-      JSON.stringify({ wallet: walletName, address: newAddress, balance: newBalance, network })
-    );
-
-    toast.success("Wallet connected!", {
-      description: `Connected to ${wallet.label} on ${network === "mainnet-beta" ? "Mainnet" : "Devnet"}`,
-    });
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ wallet: walletName, address: newAddress, balance: newBalance, network }));
+    toast.success("Wallet connected!", { description: `Connected to ${wallet.label} on ${network === "mainnet-beta" ? "Mainnet" : "Devnet"}` });
   }, [network]);
 
   const disconnect = useCallback(() => {
@@ -204,18 +160,13 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const setNetwork = useCallback((net: NetworkType) => {
     setNetworkState(net);
     if (address && selectedWallet) {
-      localStorage.setItem(
-        STORAGE_KEY,
-        JSON.stringify({ wallet: selectedWallet, address, balance, network: net })
-      );
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ wallet: selectedWallet, address, balance, network: net }));
     }
     toast.info(`Switched to ${net === "mainnet-beta" ? "Mainnet" : "Devnet"}`);
   }, [address, selectedWallet, balance]);
 
   const retryConnect = useCallback(() => {
-    if (lastAttemptedWallet) {
-      connect(lastAttemptedWallet);
-    }
+    if (lastAttemptedWallet) connect(lastAttemptedWallet);
   }, [lastAttemptedWallet, connect]);
 
   const explorerUrl = address
@@ -223,25 +174,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     : null;
 
   return (
-    <WalletContext.Provider
-      value={{
-        status,
-        address,
-        balance,
-        network,
-        showBalance,
-        selectedWallet,
-        wallets: WALLETS,
-        connect,
-        disconnect,
-        copyAddress,
-        toggleBalance,
-        setNetwork,
-        explorerUrl,
-        errorMessage,
-        retryConnect,
-      }}
-    >
+    <WalletContext.Provider value={{ status, address, balance, network, showBalance, selectedWallet, wallets: WALLETS, connect, disconnect, copyAddress, toggleBalance, setNetwork, explorerUrl, errorMessage, retryConnect }}>
       {children}
     </WalletContext.Provider>
   );

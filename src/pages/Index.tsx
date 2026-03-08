@@ -1,13 +1,14 @@
 import { motion } from "framer-motion";
-import { Sparkles, ArrowRight, Zap, Shield, Users, TrendingUp } from "lucide-react";
+import { ArrowRight, Zap, Shield, Users, TrendingUp, Rocket } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
 import WalletConnect from "@/components/wallet/WalletConnect";
+import { APP_NAME, APP_TAGLINE } from "@/lib/constants";
 
 const features = [
-  { icon: Zap, title: "Create & Earn", description: "Share your content and earn rewards from your community." },
+  { icon: Zap, title: "Create & Earn", description: "Share content and earn crypto rewards from your community." },
   { icon: Shield, title: "Own Your Data", description: "Blockchain-backed ownership of all your creative work." },
-  { icon: Users, title: "Build Community", description: "Grow your audience with built-in referral tools." },
+  { icon: Users, title: "Build Community", description: "Grow your audience with built-in referral & social tools." },
   { icon: TrendingUp, title: "Track Growth", description: "Real-time analytics to optimize your content strategy." },
 ];
 
@@ -37,26 +38,28 @@ const Index = () => {
             className="max-w-3xl mx-auto"
           >
             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-primary/20 bg-primary/5 text-primary text-sm font-medium mb-8">
-              <Sparkles className="h-4 w-4" />
-              Web3 Creator Platform
+              <Rocket className="h-4 w-4" />
+              Web3 Social Platform
             </div>
 
             <h1 className="text-4xl sm:text-5xl lg:text-7xl font-extrabold tracking-tight mb-6">
-              Your Space to{" "}
-              <span className="text-gradient">Create</span>,{" "}
-              <span className="text-gradient">Connect</span> &{" "}
-              <span className="text-gradient">Earn</span>
+              Welcome to{" "}
+              <span className="text-gradient">{APP_NAME}</span>
             </h1>
 
-            <p className="text-lg sm:text-xl text-muted-foreground max-w-2xl mx-auto mb-10 leading-relaxed">
-              Join the next generation of creators. Share content, build your community,
-              and earn rewards — all powered by blockchain technology.
+            <p className="text-xl sm:text-2xl font-semibold text-primary mb-4">
+              {APP_TAGLINE}
+            </p>
+
+            <p className="text-lg text-muted-foreground max-w-2xl mx-auto mb-10 leading-relaxed">
+              The next-gen social platform for creators. Share content, build your community,
+              and earn crypto rewards — all powered by Solana.
             </p>
 
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
               <WalletConnect variant="default" />
               <Link to="/explore">
-                <Button variant="outline" size="lg" className="gap-2 border-border hover:bg-muted">
+                <Button variant="outline" size="lg" className="gap-2 border-border hover:border-primary hover:bg-muted">
                   Explore Creators <ArrowRight className="h-4 w-4" />
                 </Button>
               </Link>
@@ -94,10 +97,10 @@ const Index = () => {
       <section className="container mx-auto px-4 py-16">
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 text-center">
           {[
-            { value: "12K+", label: "Creators" },
-            { value: "1.2M", label: "Posts" },
-            { value: "$340K", label: "Earned" },
-            { value: "98K", label: "Community" },
+            { value: "50K+", label: "Users" },
+            { value: "2.5M", label: "Posts" },
+            { value: "$1.2M", label: "Earned" },
+            { value: "180K", label: "Community" },
           ].map((stat) => (
             <motion.div
               key={stat.label}
