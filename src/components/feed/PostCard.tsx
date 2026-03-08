@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import {
-  Heart, MessageCircle, Share2, Eye, Lock, MoreHorizontal,
+  Heart, MessageCircle, Share2, Eye, MoreHorizontal,
   Trash2, Loader2, Diamond,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -23,8 +23,7 @@ function timeAgo(dateStr: string) {
   if (mins < 60) return `${mins}m`;
   const hrs = Math.floor(mins / 60);
   if (hrs < 24) return `${hrs}h`;
-  const days = Math.floor(hrs / 24);
-  return `${days}d`;
+  return `${Math.floor(hrs / 24)}d`;
 }
 
 interface PostCardProps {
@@ -36,15 +35,13 @@ interface PostCardProps {
 
 export default function PostCard({ post, onUpdate, onDelete, index }: PostCardProps) {
   const { profile } = useProfile();
-  const { sendTransaction, address, solPrice } = useWallet();
+  const { address } = useWallet();
   const [showComments, setShowComments] = useState(false);
   const [liking, setLiking] = useState(false);
   const [showTipModal, setShowTipModal] = useState(false);
-  const [unlocking, setUnlocking] = useState(false);
   const [expanded, setExpanded] = useState(false);
 
   const isOwn = profile?.id === post.user_id;
-  const isLocked = post.is_locked && !post.is_unlocked && !isOwn;
   const displayName = post.author?.display_name || post.author?.username || "Anonymous";
   const username = post.author?.username ? `@${post.author.username}` : "";
   const contentLong = post.content.length > 200;
@@ -74,23 +71,6 @@ export default function PostCard({ post, onUpdate, onDelete, index }: PostCardPr
       toast.success("Post deleted");
     } catch {
       toast.error("Failed to delete post");
-    }
-  };
-
-  const handleUnlock = async () => {
-    if (!address || !post.author?.wallet_address) return;
-    setUnlocking(true);
-    try {
-      const sig = await sendTransaction(post.author.wallet_address, post.unlock_price_sol);
-      if (sig) {
-        await feedAPI.recordUnlock(post.id, address, post.unlock_price_sol, sig);
-        onUpdate(post.id, { is_unlocked: true });
-        toast.success("Content unlocked! 🔓");
-      }
-    } catch (err) {
-      toast.error("Unlock failed");
-    } finally {
-      setUnlocking(false);
     }
   };
 
@@ -142,107 +122,59 @@ export default function PostCard({ post, onUpdate, onDelete, index }: PostCardPr
             </div>
 
             {/* Content */}
-            {isLocked ? (
-              <div className="mt-2">
-                <div className="h-32 rounded-lg bg-muted/50 border border-border flex flex-col items-center justify-center relative overflow-hidden">
-                  <div className="absolute inset-0 backdrop-blur-sm bg-background/50" />
-                  <Lock className="h-6 w-6 text-muted-foreground relative z-10 mb-2" />
-                  <span className="text-xs text-muted-foreground relative z-10">Locked Content</span>
-                </div>
-                <Button
-                  onClick={handleUnlock}
-                  disabled={unlocking}
-                  size="sm"
-                  className="mt-2 bg-primary text-primary-foreground hover:bg-secondary text-xs font-semibold"
-                >
-                  {unlocking ? (
-                    <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                  ) : (
-                    <Lock className="h-3 w-3 mr-1" />
-                  )}
-                  Unlock for {post.unlock_price_sol} SOL
-                  {solPrice && (
-                    <span className="ml-1 opacity-70">
-                      (≈${(post.unlock_price_sol * solPrice).toFixed(2)})
-                    </span>
-                  )}
-                </Button>
-              </div>
-            ) : (
-              <>
-                <p className="text-sm text-foreground leading-relaxed mt-1 whitespace-pre-line">
-                  {contentLong && !expanded ? `${post.content.slice(0, 200)}...` : post.content}
-                </p>
-                {contentLong && (
-                  <button
-                    onClick={() => setExpanded(!expanded)}
-                    className="text-xs text-primary mt-1 hover:underline"
-                  >
-                    {expanded ? "Show less" : "Show more"}
-                  </button>
-                )}
+            <p className="text-sm text-foreground leading-relaxed mt-1 whitespace-pre-line">
+              {contentLong && !expanded ? `${post.content.slice(0, 200)}...` : post.content}
+            </p>
+            {contentLong && (
+              <button onClick={() => setExpanded(!expanded)} className="text-xs text-primary mt-1 hover:underline">
+                {expanded ? "Show less" : "Show more"}
+              </button>
+            )}
 
-                {/* Media */}
-                {post.media_urls && post.media_urls.length > 0 && (
-                  <div className="mt-2 rounded-lg overflow-hidden border border-border">
-                    {post.media_type === "video" ? (
-                      <video src={post.media_urls[0]} controls className="w-full max-h-80 object-cover" />
-                    ) : (
-                      <div className={`grid gap-1 ${post.media_urls.length > 1 ? "grid-cols-2" : "grid-cols-1"}`}>
-                        {post.media_urls.map((url, i) => (
-                          <img key={i} src={url} alt="" className="w-full max-h-80 object-cover" />
-                        ))}
-                      </div>
-                    )}
+            {/* Media */}
+            {post.media_urls && post.media_urls.length > 0 && (
+              <div className="mt-2 rounded-lg overflow-hidden border border-border">
+                {post.media_type === "video" ? (
+                  <video src={post.media_urls[0]} controls className="w-full max-h-80 object-cover" />
+                ) : (
+                  <div className={`grid gap-1 ${post.media_urls.length > 1 ? "grid-cols-2" : "grid-cols-1"}`}>
+                    {post.media_urls.map((url, i) => (
+                      <img key={i} src={url} alt="" className="w-full max-h-80 object-cover" />
+                    ))}
                   </div>
                 )}
-              </>
+              </div>
             )}
 
             {/* Actions */}
             <div className="flex items-center gap-0.5 mt-3 -ml-2">
               <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleLike}
-                disabled={liking}
-                className={`gap-1 text-xs h-8 px-2 ${
-                  post.is_liked ? "text-destructive" : "text-muted-foreground hover:text-destructive"
-                }`}
+                variant="ghost" size="sm" onClick={handleLike} disabled={liking}
+                className={`gap-1 text-xs h-8 px-2 ${post.is_liked ? "text-destructive" : "text-muted-foreground hover:text-destructive"}`}
               >
                 <Heart className={`h-3.5 w-3.5 ${post.is_liked ? "fill-current" : ""}`} />
                 {post.likes_count > 0 && post.likes_count}
               </Button>
 
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setShowComments(!showComments)}
-                className="gap-1 text-muted-foreground hover:text-primary text-xs h-8 px-2"
-              >
+              <Button variant="ghost" size="sm" onClick={() => setShowComments(!showComments)}
+                className="gap-1 text-muted-foreground hover:text-primary text-xs h-8 px-2">
                 <MessageCircle className="h-3.5 w-3.5" />
                 {post.comments_count > 0 && post.comments_count}
               </Button>
 
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleShare}
-                className="gap-1 text-muted-foreground hover:text-primary text-xs h-8 px-2"
-              >
+              <Button variant="ghost" size="sm" onClick={handleShare}
+                className="gap-1 text-muted-foreground hover:text-primary text-xs h-8 px-2">
                 <Share2 className="h-3.5 w-3.5" />
                 {post.shares_count > 0 && post.shares_count}
               </Button>
 
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setShowTipModal(true)}
-                className="gap-1 text-muted-foreground hover:text-warning text-xs h-8 px-2"
-              >
-                <Diamond className="h-3.5 w-3.5" />
-                Tip
-              </Button>
+              {!isOwn && post.author?.wallet_address && (
+                <Button variant="ghost" size="sm" onClick={() => setShowTipModal(true)}
+                  className="gap-1 text-muted-foreground hover:text-warning text-xs h-8 px-2">
+                  <Diamond className="h-3.5 w-3.5" />
+                  Tip
+                </Button>
+              )}
 
               <div className="flex-1" />
               <span className="flex items-center gap-1 text-xs text-muted-foreground">
@@ -250,20 +182,13 @@ export default function PostCard({ post, onUpdate, onDelete, index }: PostCardPr
               </span>
             </div>
 
-            {/* Comments */}
             {showComments && (
-              <CommentSection
-                postId={post.id}
-                onCommentAdded={() =>
-                  onUpdate(post.id, { comments_count: post.comments_count + 1 })
-                }
-              />
+              <CommentSection postId={post.id} onCommentAdded={() => onUpdate(post.id, { comments_count: post.comments_count + 1 })} />
             )}
           </div>
         </div>
       </motion.div>
 
-      {/* Tip Modal */}
       {showTipModal && post.author && (
         <TipModal
           isOpen={showTipModal}
