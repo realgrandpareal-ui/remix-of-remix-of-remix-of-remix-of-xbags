@@ -50,6 +50,7 @@ export const feedAPI = {
     let query = supabase
       .from("posts")
       .select("*, profiles!posts_user_id_fkey(id, username, display_name, avatar_url, wallet_address)")
+      .eq("is_published", true)
       .range((page - 1) * limit, page * limit - 1);
 
     switch (tab) {
@@ -105,7 +106,8 @@ export const feedAPI = {
     mediaUrls: string[] = [],
     mediaType: string = "none",
     isLocked: boolean = false,
-    unlockPrice: number = 0
+    unlockPrice: number = 0,
+    scheduledAt?: string
   ) {
     const { data, error } = await supabase
       .from("posts")
@@ -116,6 +118,7 @@ export const feedAPI = {
         media_type: mediaType,
         is_locked: isLocked,
         unlock_price_sol: unlockPrice,
+        ...(scheduledAt ? { scheduled_at: scheduledAt, is_published: false } : {}),
       } as any)
       .select("*, profiles!posts_user_id_fkey(id, username, display_name, avatar_url, wallet_address)")
       .single();
