@@ -1,7 +1,6 @@
 import { useState, useRef } from "react";
-import { ImagePlus, Lock, X, Loader2 } from "lucide-react";
+import { ImagePlus, X, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useProfile } from "@/hooks/use-profile";
 import { useWallet } from "@/hooks/use-wallet";
@@ -16,8 +15,6 @@ export default function CreatePost({ onPostCreated }: CreatePostProps) {
   const { profile } = useProfile();
   const { status } = useWallet();
   const [content, setContent] = useState("");
-  const [isLocked, setIsLocked] = useState(false);
-  const [unlockPrice, setUnlockPrice] = useState("0.01");
   const [mediaFiles, setMediaFiles] = useState<File[]>([]);
   const [mediaPreviews, setMediaPreviews] = useState<string[]>([]);
   const [posting, setPosting] = useState(false);
@@ -31,12 +28,9 @@ export default function CreatePost({ onPostCreated }: CreatePostProps) {
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
     if (files.length === 0) return;
-
     const newFiles = [...mediaFiles, ...files].slice(0, 4);
     setMediaFiles(newFiles);
-
-    const previews = newFiles.map((f) => URL.createObjectURL(f));
-    setMediaPreviews(previews);
+    setMediaPreviews(newFiles.map((f) => URL.createObjectURL(f)));
   };
 
   const removeMedia = (index: number) => {
@@ -47,34 +41,21 @@ export default function CreatePost({ onPostCreated }: CreatePostProps) {
   const handlePost = async () => {
     if (!content.trim() || !profile) return;
     setPosting(true);
-
     try {
-      // Upload media
       let mediaUrls: string[] = [];
       for (const file of mediaFiles) {
         const url = await feedAPI.uploadMedia(file, profile.id);
         mediaUrls.push(url);
       }
-
       const mediaType = mediaFiles.length > 0
         ? (mediaFiles[0].type.startsWith("video") ? "video" : "image")
         : "none";
 
-      const post = await feedAPI.createPost(
-        profile.id,
-        content.trim(),
-        mediaUrls,
-        mediaType,
-        isLocked,
-        isLocked ? parseFloat(unlockPrice) || 0 : 0
-      );
-
+      const post = await feedAPI.createPost(profile.id, content.trim(), mediaUrls, mediaType, false, 0);
       onPostCreated(post);
       setContent("");
       setMediaFiles([]);
       setMediaPreviews([]);
-      setIsLocked(false);
-      setUnlockPrice("0.01");
       toast.success("Post created! 🎉");
     } catch (err: any) {
       console.error("Post error:", err);
@@ -103,7 +84,6 @@ export default function CreatePost({ onPostCreated }: CreatePostProps) {
             rows={3}
           />
 
-          {/* Media previews */}
           {mediaPreviews.length > 0 && (
             <div className="flex gap-2 mt-2 flex-wrap">
               {mediaPreviews.map((src, i) => (
@@ -120,71 +100,18 @@ export default function CreatePost({ onPostCreated }: CreatePostProps) {
             </div>
           )}
 
-          {/* Lock toggle */}
-          <div className="flex items-center gap-4 mt-3 pt-3 border-t border-border">
-            <div className="flex items-center gap-2">
-              <Lock className="h-3.5 w-3.5 text-muted-foreground" />
-              <span className="text-xs text-muted-foreground">Lock</span>
-              <Switch checked={isLocked} onCheckedChange={setIsLocked} className="scale-75" />
-            </div>
-
-            {isLocked && (
-              <div className="flex items-center gap-1">
-                <input
-                  type="number"
-                  value={unlockPrice}
-                  onChange={(e) => setUnlockPrice(e.target.value)}
-                  className="w-16 bg-muted rounded px-2 py-1 text-xs text-foreground outline-none"
-                  step="0.01"
-                  min="0.01"
-                />
-                <span className="text-xs text-muted-foreground">SOL</span>
-              </div>
-            )}
-
-            <div className="flex-1" />
-
-            {/* Character count */}
-            <span className={`text-xs ${remaining < 20 ? "text-destructive" : "text-muted-foreground"}`}>
-              {remaining}
-            </span>
-          </div>
-
           {/* Actions */}
-          <div className="flex items-center justify-between mt-3">
-            <div className="flex gap-1">
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*,video/*"
-                multiple
-                className="hidden"
-                onChange={handleFileSelect}
-              />
-              <Button
-                variant="ghost"
-                size="sm"
-                className="text-primary h-8 px-2"
-                onClick={() => fileInputRef.current?.click()}
-              >
+          <div className="flex items-center justify-between mt-3 pt-3 border-t border-border">
+            <div className="flex items-center gap-2">
+              <input ref={fileInputRef} type="file" accept="image/*,video/*" multiple className="hidden" onChange={handleFileSelect} />
+              <Button variant="ghost" size="sm" className="text-primary h-8 px-2" onClick={() => fileInputRef.current?.click()}>
                 <ImagePlus className="h-4 w-4" />
               </Button>
+              <span className={`text-xs ${remaining < 20 ? "text-destructive" : "text-muted-foreground"}`}>{remaining}</span>
             </div>
 
-            <Button
-              onClick={handlePost}
-              disabled={!content.trim() || posting}
-              size="sm"
-              className="bg-primary text-primary-foreground hover:bg-secondary font-semibold px-6"
-            >
-              {posting ? (
-                <>
-                  <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
-                  Posting...
-                </>
-              ) : (
-                "Post"
-              )}
+            <Button onClick={handlePost} disabled={!content.trim() || posting} size="sm" className="bg-primary text-primary-foreground hover:bg-secondary font-semibold px-6">
+              {posting ? (<><Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />Posting...</>) : "Post"}
             </Button>
           </div>
         </div>
