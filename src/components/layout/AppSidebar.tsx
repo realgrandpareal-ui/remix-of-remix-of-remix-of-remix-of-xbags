@@ -118,12 +118,17 @@ const AppSidebar = () => {
                   className="absolute bottom-full left-3 right-3 mb-2 z-50 rounded-xl bg-card border border-border shadow-modal p-2"
                 >
                   <div className="flex items-center gap-3 p-2.5 rounded-lg bg-muted/50 mb-1">
-                    <div className="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold text-primary">
-                      {address.slice(0, 2).toUpperCase()}
-                    </div>
+                    <Avatar className="h-8 w-8">
+                      {profile?.avatar_url ? (
+                        <AvatarImage src={profile.avatar_url} alt={profile.display_name || ""} />
+                      ) : null}
+                      <AvatarFallback className="bg-primary/20 text-primary text-xs font-bold">
+                        {profile?.display_name?.[0]?.toUpperCase() || address.slice(0, 2).toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
                     <div className="flex-1 min-w-0">
-                      <div className="text-sm font-semibold text-foreground truncate font-mono">{truncateAddress(address)}</div>
-                      <div className="text-xs text-muted-foreground">{selectedWalletName}</div>
+                      <div className="text-sm font-semibold text-foreground truncate">{profile?.display_name || truncateAddress(address)}</div>
+                      <div className="text-xs text-muted-foreground">@{profile?.username || selectedWalletName}</div>
                     </div>
                     <div className="h-4 w-4 rounded-full bg-primary/20 flex items-center justify-center">
                       <div className="h-2 w-2 rounded-full bg-primary" />
