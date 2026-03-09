@@ -16,6 +16,7 @@ import { toast } from "sonner";
 import CommentSection from "./CommentSection";
 import TipModal from "./TipModal";
 import QuoteModal from "./QuoteModal";
+import EmbeddedPost from "./EmbeddedPost";
 
 function timeAgo(dateStr: string) {
   const diff = Date.now() - new Date(dateStr).getTime();
@@ -60,31 +61,40 @@ export default function PostCard({ post, onUpdate, onDelete, index }: PostCardPr
   const [expanded, setExpanded] = useState(false);
   const [hasViewed, setHasViewed] = useState(false);
 
-  const isOwn = profile?.id === post.user_id;
-  const displayName = post.author?.display_name || post.author?.username || "Anonymous";
-  const username = post.author?.username ? `@${post.author.username}` : "";
-  const contentLong = post.content.length > 200;
+  // For reposts, the displayed post is the parent
+  const isRepost = post.post_type === "repost" && post.parent_post;
+  const isQuote = post.post_type === "quote" && post.parent_post;
+  const displayPost = isRepost ? post.parent_post! : post;
 
-  // Track views
+  const isOwn = profile?.id === post.user_id;
+  const displayName = displayPost.author?.display_name || displayPost.author?.username || "Anonymous";
+  const username = displayPost.author?.username ? `@${displayPost.author.username}` : "";
+  const contentLong = displayPost.content.length > 200;
+  const repostAuthorName = post.author?.display_name || post.author?.username || "Someone";
+
+  // Track views on the actual displayed post
   useEffect(() => {
     if (!hasViewed) {
       setHasViewed(true);
-      feedAPI.incrementViews(post.id).catch(() => {});
-      onUpdate(post.id, { views_count: post.views_count + 1 });
+      feedAPI.incrementViews(displayPost.id).catch(() => {});
+      onUpdate(displayPost.id, { views_count: displayPost.views_count + 1 });
     }
-  }, [post.id, hasViewed, onUpdate, post.views_count]);
+  }, [displayPost.id, hasViewed, onUpdate, displayPost.views_count]);
+
+  // For actions, target the original post (parent for reposts, or post itself)
+  const targetPostId = isRepost ? post.parent_post!.id : post.id;
 
   const handleLike = async () => {
     if (!profile) return toast.error("Connect wallet first");
     if (liking) return;
     setLiking(true);
     try {
-      const nowLiked = await feedAPI.toggleLike(post.id, profile.id, !!post.is_liked);
-      onUpdate(post.id, {
+      const nowLiked = await feedAPI.toggleLike(targetPostId, profile.id, !!displayPost.is_liked);
+      onUpdate(targetPostId, {
         is_liked: nowLiked,
-        likes_count: nowLiked ? post.likes_count + 1 : Math.max(0, post.likes_count - 1),
+        likes_count: nowLiked ? displayPost.likes_count + 1 : Math.max(0, displayPost.likes_count - 1),
       });
-    } catch (err: any) {
+    } catch (err) {
       console.error(err);
     } finally {
       setLiking(false);
@@ -96,13 +106,13 @@ export default function PostCard({ post, onUpdate, onDelete, index }: PostCardPr
     if (reposting) return;
     setReposting(true);
     try {
-      const nowReposted = await feedAPI.toggleRepost(post.id, profile.id, !!post.is_reposted);
-      onUpdate(post.id, {
-        is_reposted: nowReposted,
-        reposts_count: nowReposted ? (post.reposts_count || 0) + 1 : Math.max(0, (post.reposts_count || 0) - 1),
+      const result = await feedAPI.createRepost(targetPostId, profile.id);
+      onUpdate(targetPostId, {
+        is_reposted: result.reposted,
+        reposts_count: result.reposted ? (displayPost.reposts_count || 0) + 1 : Math.max(0, (displayPost.reposts_count || 0) - 1),
       });
-      toast.success(nowReposted ? "Reposted!" : "Repost removed");
-    } catch (err: any) {
+      toast.success(result.reposted ? "Reposted!" : "Repost removed");
+    } catch (err) {
       console.error(err);
       toast.error("Failed to repost");
     } finally {
@@ -115,8 +125,8 @@ export default function PostCard({ post, onUpdate, onDelete, index }: PostCardPr
       toast.error("Connect wallet first");
       return;
     }
-    await feedAPI.quoteRetweet(post.id, profile.id, quoteContent);
-    onUpdate(post.id, { reposts_count: (post.reposts_count || 0) + 1 });
+    await feedAPI.createQuote(targetPostId, profile.id, quoteContent);
+    onUpdate(targetPostId, { reposts_count: (displayPost.reposts_count || 0) + 1 });
     toast.success("Quote posted!");
   };
 
@@ -131,20 +141,20 @@ export default function PostCard({ post, onUpdate, onDelete, index }: PostCardPr
   };
 
   const handleCopyLink = async () => {
-    const url = `${window.location.origin}/post/${post.id}`;
+    const url = `${window.location.origin}/post/${targetPostId}`;
     await navigator.clipboard.writeText(url);
-    await feedAPI.incrementShares(post.id);
+    await feedAPI.incrementShares(targetPostId);
     toast.success("Link copied!");
-    onUpdate(post.id, { shares_count: post.shares_count + 1 });
+    onUpdate(targetPostId, { shares_count: displayPost.shares_count + 1 });
   };
 
   const handleShareToX = async () => {
-    const postUrl = `${window.location.origin}/post/${post.id}`;
+    const postUrl = `${window.location.origin}/post/${targetPostId}`;
     const text = encodeURIComponent("Check out this post on bags.fun! 🎒");
     const url = encodeURIComponent(postUrl);
     window.open(`https://twitter.com/intent/tweet?text=${text}&url=${url}`, "_blank");
-    await feedAPI.incrementShares(post.id);
-    onUpdate(post.id, { shares_count: post.shares_count + 1 });
+    await feedAPI.incrementShares(targetPostId);
+    onUpdate(targetPostId, { shares_count: displayPost.shares_count + 1 });
   };
 
   return (
@@ -156,27 +166,20 @@ export default function PostCard({ post, onUpdate, onDelete, index }: PostCardPr
         className="px-4 py-4 hover:bg-muted/30 transition-colors border-b border-border cursor-pointer"
       >
         {/* Repost header */}
-        {post.reposted_by && (
+        {isRepost && (
           <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2 ml-12">
             <Repeat2 className="h-3.5 w-3.5" />
-            <span>
-              {post.reposted_by.display_name || post.reposted_by.username || "Someone"}{" "}
-              {post.repost_type === "quote" ? "quoted" : "reposted"}
-            </span>
-          </div>
-        )}
-
-        {/* Quote content (if quote tweet) */}
-        {post.repost_type === "quote" && post.quote_content && (
-          <div className="ml-12 mb-2 p-2.5 rounded-lg border border-border bg-muted/20 text-sm text-foreground">
-            {post.quote_content}
+            <span>{repostAuthorName} reposted</span>
           </div>
         )}
 
         <div className="flex gap-3">
           {/* Avatar */}
-          <Avatar className="h-10 w-10 shrink-0 ring-2 ring-transparent hover:ring-primary/30 transition-all">
-            <AvatarImage src={post.author?.avatar_url || undefined} />
+          <Avatar
+            className="h-10 w-10 shrink-0 ring-2 ring-transparent hover:ring-primary/30 transition-all cursor-pointer"
+            onClick={() => displayPost.author?.username && navigate(`/profile/${displayPost.author.username}`)}
+          >
+            <AvatarImage src={displayPost.author?.avatar_url || undefined} />
             <AvatarFallback className="bg-primary/20 text-primary text-sm font-bold">
               {displayName[0].toUpperCase()}
             </AvatarFallback>
@@ -188,7 +191,7 @@ export default function PostCard({ post, onUpdate, onDelete, index }: PostCardPr
               <div className="flex items-center gap-1.5 min-w-0">
                 <span className="font-semibold text-sm text-foreground truncate">{displayName}</span>
                 <span className="text-sm text-muted-foreground truncate">{username}</span>
-                <span className="text-xs text-muted-foreground" title={formatDate(post.created_at)}>· {timeAgo(post.created_at)}</span>
+                <span className="text-xs text-muted-foreground" title={formatDate(displayPost.created_at)}>· {timeAgo(displayPost.created_at)}</span>
               </div>
               {isOwn && (
                 <DropdownMenu>
@@ -206,11 +209,22 @@ export default function PostCard({ post, onUpdate, onDelete, index }: PostCardPr
               )}
             </div>
 
-            {/* Content - clickable to navigate to post detail */}
-            <div onClick={() => navigate(`/post/${post.id}`)} className="cursor-pointer">
-              <p className="text-sm text-foreground leading-relaxed mt-1 whitespace-pre-line">
-                {contentLong && !expanded ? `${post.content.slice(0, 200)}...` : post.content}
-              </p>
+            {/* Content */}
+            <div onClick={() => navigate(`/post/${targetPostId}`)} className="cursor-pointer">
+              {/* For quotes, show quote author's comment first */}
+              {isQuote && (
+                <p className="text-sm text-foreground leading-relaxed mt-1 whitespace-pre-line">
+                  {contentLong && !expanded ? `${post.content.slice(0, 200)}...` : post.content}
+                </p>
+              )}
+
+              {/* For regular tweets, show their content */}
+              {!isRepost && !isQuote && (
+                <p className="text-sm text-foreground leading-relaxed mt-1 whitespace-pre-line">
+                  {contentLong && !expanded ? `${displayPost.content.slice(0, 200)}...` : displayPost.content}
+                </p>
+              )}
+
               {contentLong && (
                 <button onClick={(e) => { e.stopPropagation(); setExpanded(!expanded); }} className="text-xs text-primary mt-1 hover:underline">
                   {expanded ? "Show less" : "Show more"}
@@ -218,17 +232,22 @@ export default function PostCard({ post, onUpdate, onDelete, index }: PostCardPr
               )}
             </div>
 
+            {/* Embedded original post for quotes */}
+            {isQuote && post.parent_post && (
+              <EmbeddedPost post={post.parent_post} />
+            )}
+
             {/* Timestamp */}
-            <p className="text-[11px] text-muted-foreground mt-1.5">{formatDate(post.created_at)}</p>
+            <p className="text-[11px] text-muted-foreground mt-1.5">{formatDate(displayPost.created_at)}</p>
 
             {/* Media */}
-            {post.media_urls && post.media_urls.length > 0 && (
+            {displayPost.media_urls && displayPost.media_urls.length > 0 && (
               <div className="mt-2 rounded-xl overflow-hidden border border-border">
-                {post.media_type === "video" ? (
-                  <video src={post.media_urls[0]} controls className="w-full max-h-80 object-cover" />
+                {displayPost.media_type === "video" ? (
+                  <video src={displayPost.media_urls[0]} controls className="w-full max-h-80 object-cover" />
                 ) : (
-                  <div className={`grid gap-0.5 ${post.media_urls.length > 1 ? "grid-cols-2" : "grid-cols-1"}`}>
-                    {post.media_urls.map((url, i) => (
+                  <div className={`grid gap-0.5 ${displayPost.media_urls.length > 1 ? "grid-cols-2" : "grid-cols-1"}`}>
+                    {displayPost.media_urls.map((url, i) => (
                       <img key={i} src={url} alt="" className="w-full max-h-80 object-cover" loading="lazy" />
                     ))}
                   </div>
@@ -248,7 +267,7 @@ export default function PostCard({ post, onUpdate, onDelete, index }: PostCardPr
                   <div className="p-1 rounded-full group-hover:bg-primary/10 transition-colors">
                     <MessageCircle className="h-3.5 w-3.5" />
                   </div>
-                  <span>{formatCount(post.comments_count)}</span>
+                  <span>{formatCount(displayPost.comments_count)}</span>
                 </Button>
 
                 {/* Repost dropdown */}
@@ -257,21 +276,21 @@ export default function PostCard({ post, onUpdate, onDelete, index }: PostCardPr
                     <Button
                       variant="ghost" size="sm" disabled={reposting}
                       className={`gap-1.5 text-xs h-8 px-2 group ${
-                        post.is_reposted ? "text-primary" : "text-muted-foreground hover:text-primary"
+                        displayPost.is_reposted ? "text-primary" : "text-muted-foreground hover:text-primary"
                       }`}
                     >
                       <div className={`p-1 rounded-full transition-colors ${
-                        post.is_reposted ? "bg-primary/10" : "group-hover:bg-primary/10"
+                        displayPost.is_reposted ? "bg-primary/10" : "group-hover:bg-primary/10"
                       }`}>
                         <Repeat2 className="h-3.5 w-3.5" />
                       </div>
-                      <span>{formatCount(post.reposts_count || 0)}</span>
+                      <span>{formatCount(displayPost.reposts_count || 0)}</span>
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="start" className="min-w-[160px]">
                     <DropdownMenuItem onClick={handleRepost}>
                       <Repeat2 className="h-4 w-4 mr-2" />
-                      {post.is_reposted ? "Undo Repost" : "Repost"}
+                      {displayPost.is_reposted ? "Undo Repost" : "Repost"}
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem onClick={() => setShowQuoteModal(true)}>
@@ -285,33 +304,33 @@ export default function PostCard({ post, onUpdate, onDelete, index }: PostCardPr
                 <Button
                   variant="ghost" size="sm" onClick={handleLike} disabled={liking}
                   className={`gap-1.5 text-xs h-8 px-2 group ${
-                    post.is_liked ? "text-destructive" : "text-muted-foreground hover:text-destructive"
+                    displayPost.is_liked ? "text-destructive" : "text-muted-foreground hover:text-destructive"
                   }`}
                 >
                   <motion.div
                     className={`p-1 rounded-full transition-colors ${
-                      post.is_liked ? "bg-destructive/10" : "group-hover:bg-destructive/10"
+                      displayPost.is_liked ? "bg-destructive/10" : "group-hover:bg-destructive/10"
                     }`}
                     whileTap={{ scale: 1.4 }}
                     transition={{ type: "spring", stiffness: 400, damping: 10 }}
                   >
-                    <Heart className={`h-3.5 w-3.5 ${post.is_liked ? "fill-current" : ""}`} />
+                    <Heart className={`h-3.5 w-3.5 ${displayPost.is_liked ? "fill-current" : ""}`} />
                   </motion.div>
                   <AnimatePresence mode="wait">
                     <motion.span
-                      key={post.likes_count}
+                      key={displayPost.likes_count}
                       initial={{ y: -8, opacity: 0 }}
                       animate={{ y: 0, opacity: 1 }}
                       exit={{ y: 8, opacity: 0 }}
                       transition={{ duration: 0.15 }}
                     >
-                      {formatCount(post.likes_count)}
+                      {formatCount(displayPost.likes_count)}
                     </motion.span>
                   </AnimatePresence>
                 </Button>
 
                 {/* Tip */}
-                {!isOwn && post.author?.wallet_address && (
+                {!isOwn && displayPost.author?.wallet_address && (
                   <Button
                     variant="ghost" size="sm"
                     onClick={() => setShowTipModal(true)}
@@ -333,7 +352,7 @@ export default function PostCard({ post, onUpdate, onDelete, index }: PostCardPr
                       <div className="p-1 rounded-full group-hover:bg-primary/10 transition-colors">
                         <Share2 className="h-3.5 w-3.5" />
                       </div>
-                      <span>{formatCount(post.shares_count)}</span>
+                      <span>{formatCount(displayPost.shares_count)}</span>
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="start" className="min-w-[160px]">
@@ -355,12 +374,12 @@ export default function PostCard({ post, onUpdate, onDelete, index }: PostCardPr
                 <Eye className="h-3 w-3" />
                 <AnimatePresence mode="wait">
                   <motion.span
-                    key={post.views_count}
+                    key={displayPost.views_count}
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     transition={{ duration: 0.2 }}
                   >
-                    {formatCount(post.views_count)}
+                    {formatCount(displayPost.views_count)}
                   </motion.span>
                 </AnimatePresence>
               </span>
@@ -377,8 +396,8 @@ export default function PostCard({ post, onUpdate, onDelete, index }: PostCardPr
                   className="overflow-hidden"
                 >
                   <CommentSection
-                    postId={post.id}
-                    onCommentAdded={() => onUpdate(post.id, { comments_count: post.comments_count + 1 })}
+                    postId={targetPostId}
+                    onCommentAdded={() => onUpdate(targetPostId, { comments_count: displayPost.comments_count + 1 })}
                   />
                 </motion.div>
               )}
@@ -387,13 +406,13 @@ export default function PostCard({ post, onUpdate, onDelete, index }: PostCardPr
         </div>
       </motion.div>
 
-      {showTipModal && post.author && (
+      {showTipModal && displayPost.author && (
         <TipModal
           isOpen={showTipModal}
           onClose={() => setShowTipModal(false)}
-          recipientWallet={post.author.wallet_address}
+          recipientWallet={displayPost.author.wallet_address}
           recipientName={displayName}
-          recipientUsername={post.author.username}
+          recipientUsername={displayPost.author.username}
         />
       )}
 
@@ -403,8 +422,8 @@ export default function PostCard({ post, onUpdate, onDelete, index }: PostCardPr
           onClose={() => setShowQuoteModal(false)}
           onQuote={handleQuote}
           originalPost={{
-            content: post.content,
-            author: post.author,
+            content: displayPost.content,
+            author: displayPost.author,
           }}
         />
       )}
