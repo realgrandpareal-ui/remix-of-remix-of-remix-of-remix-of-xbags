@@ -89,6 +89,45 @@ export type Database = {
           },
         ]
       }
+      post_reposts: {
+        Row: {
+          created_at: string | null
+          id: string
+          post_id: string
+          quote_content: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          post_id: string
+          quote_content?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          post_id?: string
+          quote_content?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "post_reposts_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "posts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "post_reposts_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       post_unlocks: {
         Row: {
           amount_sol: number
@@ -135,6 +174,7 @@ export type Database = {
           likes_count: number | null
           media_type: string | null
           media_urls: string[] | null
+          reposts_count: number | null
           scheduled_at: string | null
           shares_count: number | null
           unlock_price_sol: number | null
@@ -152,6 +192,7 @@ export type Database = {
           likes_count?: number | null
           media_type?: string | null
           media_urls?: string[] | null
+          reposts_count?: number | null
           scheduled_at?: string | null
           shares_count?: number | null
           unlock_price_sol?: number | null
@@ -169,6 +210,7 @@ export type Database = {
           likes_count?: number | null
           media_type?: string | null
           media_urls?: string[] | null
+          reposts_count?: number | null
           scheduled_at?: string | null
           shares_count?: number | null
           unlock_price_sol?: number | null

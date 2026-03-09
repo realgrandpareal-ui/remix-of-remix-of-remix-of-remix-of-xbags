@@ -1,20 +1,20 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import {
   Heart, MessageCircle, Share2, Eye, MoreHorizontal,
-  Trash2, Loader2, Diamond,
+  Trash2, Diamond, Repeat2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { Post, feedAPI } from "@/lib/api/feed";
 import { useProfile } from "@/hooks/use-profile";
-import { useWallet } from "@/hooks/use-wallet";
 import { toast } from "sonner";
 import CommentSection from "./CommentSection";
 import TipModal from "./TipModal";
+import QuoteModal from "./QuoteModal";
 
 function timeAgo(dateStr: string) {
   const diff = Date.now() - new Date(dateStr).getTime();
@@ -35,16 +35,27 @@ interface PostCardProps {
 
 export default function PostCard({ post, onUpdate, onDelete, index }: PostCardProps) {
   const { profile } = useProfile();
-  const { address } = useWallet();
   const [showComments, setShowComments] = useState(false);
   const [liking, setLiking] = useState(false);
+  const [reposting, setReposting] = useState(false);
   const [showTipModal, setShowTipModal] = useState(false);
+  const [showQuoteModal, setShowQuoteModal] = useState(false);
   const [expanded, setExpanded] = useState(false);
+  const [hasViewed, setHasViewed] = useState(false);
 
   const isOwn = profile?.id === post.user_id;
   const displayName = post.author?.display_name || post.author?.username || "Anonymous";
   const username = post.author?.username ? `@${post.author.username}` : "";
   const contentLong = post.content.length > 200;
+
+  // Track views when post becomes visible
+  useEffect(() => {
+    if (!hasViewed) {
+      setHasViewed(true);
+      feedAPI.incrementViews(post.id).catch(() => {});
+      onUpdate(post.id, { views_count: post.views_count + 1 });
+    }
+  }, [post.id, hasViewed, onUpdate, post.views_count]);
 
   const handleLike = async () => {
     if (!profile) return toast.error("Connect wallet first");
@@ -64,6 +75,37 @@ export default function PostCard({ post, onUpdate, onDelete, index }: PostCardPr
     }
   };
 
+  const handleRepost = async () => {
+    if (!profile) return toast.error("Connect wallet first");
+    setReposting(true);
+    try {
+      if (post.is_reposted) {
+        await feedAPI.unrepost(post.id, profile.id);
+        onUpdate(post.id, { is_reposted: false, reposts_count: Math.max(0, (post.reposts_count || 0) - 1) });
+        toast.success("Repost removed");
+      } else {
+        await feedAPI.repost(post.id, profile.id);
+        onUpdate(post.id, { is_reposted: true, reposts_count: (post.reposts_count || 0) + 1 });
+        toast.success("Reposted!");
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to repost");
+    } finally {
+      setReposting(false);
+    }
+  };
+
+  const handleQuote = async (quoteContent: string): Promise<void> => {
+    if (!profile) {
+      toast.error("Connect wallet first");
+      return;
+    }
+    await feedAPI.repost(post.id, profile.id, quoteContent);
+    onUpdate(post.id, { reposts_count: (post.reposts_count || 0) + 1 });
+    toast.success("Quote posted!");
+  };
+
   const handleDelete = async () => {
     try {
       await feedAPI.deletePost(post.id);
@@ -74,9 +116,10 @@ export default function PostCard({ post, onUpdate, onDelete, index }: PostCardPr
     }
   };
 
-  const handleShare = () => {
+  const handleShare = async () => {
     const url = `${window.location.origin}/post/${post.id}`;
-    navigator.clipboard.writeText(url);
+    await navigator.clipboard.writeText(url);
+    await feedAPI.incrementShares(post.id);
     toast.success("Link copied!");
     onUpdate(post.id, { shares_count: post.shares_count + 1 });
   };
@@ -148,6 +191,7 @@ export default function PostCard({ post, onUpdate, onDelete, index }: PostCardPr
 
             {/* Actions */}
             <div className="flex items-center gap-0.5 mt-3 -ml-2">
+              {/* Like */}
               <Button
                 variant="ghost" size="sm" onClick={handleLike} disabled={liking}
                 className={`gap-1 text-xs h-8 px-2 ${post.is_liked ? "text-destructive" : "text-muted-foreground hover:text-destructive"}`}
@@ -156,18 +200,43 @@ export default function PostCard({ post, onUpdate, onDelete, index }: PostCardPr
                 {post.likes_count > 0 && post.likes_count}
               </Button>
 
+              {/* Comment */}
               <Button variant="ghost" size="sm" onClick={() => setShowComments(!showComments)}
                 className="gap-1 text-muted-foreground hover:text-primary text-xs h-8 px-2">
                 <MessageCircle className="h-3.5 w-3.5" />
                 {post.comments_count > 0 && post.comments_count}
               </Button>
 
+              {/* Repost dropdown */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="sm" disabled={reposting}
+                    className={`gap-1 text-xs h-8 px-2 ${post.is_reposted ? "text-green-500" : "text-muted-foreground hover:text-green-500"}`}>
+                    <Repeat2 className={`h-3.5 w-3.5 ${post.is_reposted ? "text-green-500" : ""}`} />
+                    {(post.reposts_count || 0) > 0 && post.reposts_count}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start">
+                  <DropdownMenuItem onClick={handleRepost}>
+                    <Repeat2 className="h-4 w-4 mr-2" />
+                    {post.is_reposted ? "Undo Repost" : "Repost"}
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => setShowQuoteModal(true)}>
+                    <MessageCircle className="h-4 w-4 mr-2" />
+                    Quote Tweet
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              {/* Share */}
               <Button variant="ghost" size="sm" onClick={handleShare}
                 className="gap-1 text-muted-foreground hover:text-primary text-xs h-8 px-2">
                 <Share2 className="h-3.5 w-3.5" />
                 {post.shares_count > 0 && post.shares_count}
               </Button>
 
+              {/* Tip */}
               {!isOwn && post.author?.wallet_address && (
                 <Button variant="ghost" size="sm" onClick={() => setShowTipModal(true)}
                   className="gap-1 text-muted-foreground hover:text-warning text-xs h-8 px-2">
@@ -177,6 +246,8 @@ export default function PostCard({ post, onUpdate, onDelete, index }: PostCardPr
               )}
 
               <div className="flex-1" />
+              
+              {/* Views */}
               <span className="flex items-center gap-1 text-xs text-muted-foreground">
                 <Eye className="h-3 w-3" /> {post.views_count}
               </span>
@@ -196,6 +267,18 @@ export default function PostCard({ post, onUpdate, onDelete, index }: PostCardPr
           recipientWallet={post.author.wallet_address}
           recipientName={displayName}
           recipientUsername={post.author.username}
+        />
+      )}
+
+      {showQuoteModal && (
+        <QuoteModal
+          isOpen={showQuoteModal}
+          onClose={() => setShowQuoteModal(false)}
+          onQuote={handleQuote}
+          originalPost={{
+            content: post.content,
+            author: post.author,
+          }}
         />
       )}
     </>
