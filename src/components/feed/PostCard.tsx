@@ -115,7 +115,7 @@ export default function PostCard({ post, onUpdate, onDelete, index }: PostCardPr
       toast.error("Connect wallet first");
       return;
     }
-    await feedAPI.repost(post.id, profile.id, quoteContent);
+    await feedAPI.quoteRetweet(post.id, profile.id, quoteContent);
     onUpdate(post.id, { reposts_count: (post.reposts_count || 0) + 1 });
     toast.success("Quote posted!");
   };
