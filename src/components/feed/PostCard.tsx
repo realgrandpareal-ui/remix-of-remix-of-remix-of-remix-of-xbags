@@ -96,8 +96,11 @@ export default function PostCard({ post, onUpdate, onDelete, index }: PostCardPr
     }
   };
 
-  const handleQuote = async (quoteContent: string) => {
-    if (!profile) return toast.error("Connect wallet first");
+  const handleQuote = async (quoteContent: string): Promise<void> => {
+    if (!profile) {
+      toast.error("Connect wallet first");
+      return;
+    }
     await feedAPI.repost(post.id, profile.id, quoteContent);
     onUpdate(post.id, { reposts_count: (post.reposts_count || 0) + 1 });
     toast.success("Quote posted!");

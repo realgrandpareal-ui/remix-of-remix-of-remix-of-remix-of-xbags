@@ -211,19 +211,10 @@ export const feedAPI = {
   },
 
   async incrementViews(postId: string) {
-    const { error } = await supabase
-      .from("posts")
-      .update({ views_count: supabase.rpc ? undefined : 0 } as any)
-      .eq("id", postId);
-    
-    // Direct increment using raw update
-    await supabase.rpc("increment_post_views", { p_post_id: postId }).catch(async () => {
-      // Fallback: fetch and update
-      const { data } = await supabase.from("posts").select("views_count").eq("id", postId).single();
-      if (data) {
-        await supabase.from("posts").update({ views_count: (data.views_count || 0) + 1 } as any).eq("id", postId);
-      }
-    });
+    const { data } = await supabase.from("posts").select("views_count").eq("id", postId).single();
+    if (data) {
+      await supabase.from("posts").update({ views_count: (data.views_count || 0) + 1 } as any).eq("id", postId);
+    }
   },
 
   async incrementShares(postId: string) {
