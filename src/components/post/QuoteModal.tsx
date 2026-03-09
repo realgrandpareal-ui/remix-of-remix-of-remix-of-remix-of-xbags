@@ -25,7 +25,7 @@ export function QuoteModal({ post, onClose, onQuote }: QuoteModalProps) {
 
     try {
       setLoading(true);
-      await feedAPI.repost(post.id, profile.id, content.trim() || undefined);
+      await feedAPI.quoteRetweet(post.id, profile.id, content.trim() || "");
       toast.success('Quote tweet posted!');
       onQuote();
       onClose();
