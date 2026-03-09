@@ -79,20 +79,13 @@ export default function PostCard({ post, onUpdate, onDelete, index }: PostCardPr
     if (liking) return;
     setLiking(true);
     try {
-      if (post.is_liked) {
-        await feedAPI.unlikePost(post.id, profile.id);
-        onUpdate(post.id, { is_liked: false, likes_count: Math.max(0, post.likes_count - 1) });
-      } else {
-        await feedAPI.likePost(post.id, profile.id);
-        onUpdate(post.id, { is_liked: true, likes_count: post.likes_count + 1 });
-      }
+      const nowLiked = await feedAPI.toggleLike(post.id, profile.id, !!post.is_liked);
+      onUpdate(post.id, {
+        is_liked: nowLiked,
+        likes_count: nowLiked ? post.likes_count + 1 : Math.max(0, post.likes_count - 1),
+      });
     } catch (err: any) {
-      // If duplicate error, sync state
-      if (err?.message?.includes("duplicate") || err?.code === "23505") {
-        onUpdate(post.id, { is_liked: true });
-      } else {
-        console.error(err);
-      }
+      console.error(err);
     } finally {
       setLiking(false);
     }
