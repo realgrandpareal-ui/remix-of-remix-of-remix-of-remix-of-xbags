@@ -50,6 +50,7 @@ interface PostCardProps {
 }
 
 export default function PostCard({ post, onUpdate, onDelete, index }: PostCardProps) {
+  const navigate = useNavigate();
   const { profile } = useProfile();
   const [showComments, setShowComments] = useState(false);
   const [liking, setLiking] = useState(false);
