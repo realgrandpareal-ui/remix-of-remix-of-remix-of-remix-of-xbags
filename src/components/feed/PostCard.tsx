@@ -76,6 +76,7 @@ export default function PostCard({ post, onUpdate, onDelete, index }: PostCardPr
 
   const handleLike = async () => {
     if (!profile) return toast.error("Connect wallet first");
+    if (liking) return;
     setLiking(true);
     try {
       if (post.is_liked) {
@@ -85,8 +86,13 @@ export default function PostCard({ post, onUpdate, onDelete, index }: PostCardPr
         await feedAPI.likePost(post.id, profile.id);
         onUpdate(post.id, { is_liked: true, likes_count: post.likes_count + 1 });
       }
-    } catch (err) {
-      console.error(err);
+    } catch (err: any) {
+      // If duplicate error, sync state
+      if (err?.message?.includes("duplicate") || err?.code === "23505") {
+        onUpdate(post.id, { is_liked: true });
+      } else {
+        console.error(err);
+      }
     } finally {
       setLiking(false);
     }
