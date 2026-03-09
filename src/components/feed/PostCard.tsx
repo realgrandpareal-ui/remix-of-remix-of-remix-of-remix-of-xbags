@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Heart, MessageCircle, Share2, Eye, MoreHorizontal,
@@ -27,6 +28,14 @@ function timeAgo(dateStr: string) {
   return `${Math.floor(hrs / 24)}d`;
 }
 
+function formatDate(dateStr: string) {
+  const d = new Date(dateStr);
+  return d.toLocaleString("en-US", {
+    month: "short", day: "numeric", year: "numeric",
+    hour: "numeric", minute: "2-digit", hour12: true,
+  });
+}
+
 function formatCount(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
@@ -41,6 +50,7 @@ interface PostCardProps {
 }
 
 export default function PostCard({ post, onUpdate, onDelete, index }: PostCardProps) {
+  const navigate = useNavigate();
   const { profile } = useProfile();
   const [showComments, setShowComments] = useState(false);
   const [liking, setLiking] = useState(false);
@@ -66,6 +76,7 @@ export default function PostCard({ post, onUpdate, onDelete, index }: PostCardPr
 
   const handleLike = async () => {
     if (!profile) return toast.error("Connect wallet first");
+    if (liking) return;
     setLiking(true);
     try {
       if (post.is_liked) {
@@ -75,8 +86,13 @@ export default function PostCard({ post, onUpdate, onDelete, index }: PostCardPr
         await feedAPI.likePost(post.id, profile.id);
         onUpdate(post.id, { is_liked: true, likes_count: post.likes_count + 1 });
       }
-    } catch (err) {
-      console.error(err);
+    } catch (err: any) {
+      // If duplicate error, sync state
+      if (err?.message?.includes("duplicate") || err?.code === "23505") {
+        onUpdate(post.id, { is_liked: true });
+      } else {
+        console.error(err);
+      }
     } finally {
       setLiking(false);
     }
@@ -84,6 +100,7 @@ export default function PostCard({ post, onUpdate, onDelete, index }: PostCardPr
 
   const handleRepost = async () => {
     if (!profile) return toast.error("Connect wallet first");
+    if (reposting) return;
     setReposting(true);
     try {
       if (post.is_reposted) {
@@ -95,9 +112,14 @@ export default function PostCard({ post, onUpdate, onDelete, index }: PostCardPr
         onUpdate(post.id, { is_reposted: true, reposts_count: (post.reposts_count || 0) + 1 });
         toast.success("Reposted!");
       }
-    } catch (err) {
-      console.error(err);
-      toast.error("Failed to repost");
+    } catch (err: any) {
+      if (err?.message?.includes("duplicate") || err?.code === "23505") {
+        onUpdate(post.id, { is_reposted: true });
+        toast.info("Already reposted");
+      } else {
+        console.error(err);
+        toast.error("Failed to repost");
+      }
     } finally {
       setReposting(false);
     }
@@ -146,7 +168,7 @@ export default function PostCard({ post, onUpdate, onDelete, index }: PostCardPr
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: index * 0.03, duration: 0.3 }}
-        className="px-4 py-4 hover:bg-muted/30 transition-colors border-b border-border"
+        className="px-4 py-4 hover:bg-muted/30 transition-colors border-b border-border cursor-pointer"
       >
         <div className="flex gap-3">
           {/* Avatar */}
@@ -163,7 +185,7 @@ export default function PostCard({ post, onUpdate, onDelete, index }: PostCardPr
               <div className="flex items-center gap-1.5 min-w-0">
                 <span className="font-semibold text-sm text-foreground truncate">{displayName}</span>
                 <span className="text-sm text-muted-foreground truncate">{username}</span>
-                <span className="text-xs text-muted-foreground">· {timeAgo(post.created_at)}</span>
+                <span className="text-xs text-muted-foreground" title={formatDate(post.created_at)}>· {timeAgo(post.created_at)}</span>
               </div>
               {isOwn && (
                 <DropdownMenu>
@@ -181,15 +203,20 @@ export default function PostCard({ post, onUpdate, onDelete, index }: PostCardPr
               )}
             </div>
 
-            {/* Content */}
-            <p className="text-sm text-foreground leading-relaxed mt-1 whitespace-pre-line">
-              {contentLong && !expanded ? `${post.content.slice(0, 200)}...` : post.content}
-            </p>
-            {contentLong && (
-              <button onClick={() => setExpanded(!expanded)} className="text-xs text-primary mt-1 hover:underline">
-                {expanded ? "Show less" : "Show more"}
-              </button>
-            )}
+            {/* Content - clickable to navigate to post detail */}
+            <div onClick={() => navigate(`/post/${post.id}`)} className="cursor-pointer">
+              <p className="text-sm text-foreground leading-relaxed mt-1 whitespace-pre-line">
+                {contentLong && !expanded ? `${post.content.slice(0, 200)}...` : post.content}
+              </p>
+              {contentLong && (
+                <button onClick={(e) => { e.stopPropagation(); setExpanded(!expanded); }} className="text-xs text-primary mt-1 hover:underline">
+                  {expanded ? "Show less" : "Show more"}
+                </button>
+              )}
+            </div>
+
+            {/* Timestamp */}
+            <p className="text-[11px] text-muted-foreground mt-1.5">{formatDate(post.created_at)}</p>
 
             {/* Media */}
             {post.media_urls && post.media_urls.length > 0 && (

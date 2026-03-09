@@ -19,6 +19,7 @@ import HowItWorksPage from "./pages/HowItWorksPage";
 import MessagesPage from "./pages/MessagesPage";
 import SettingsPage from "./pages/SettingsPage";
 import WalletPage from "./pages/WalletPage";
+import PostDetailPage from "./pages/PostDetailPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -46,6 +47,7 @@ const App = () => (
                 <Route path="/settings" element={<SettingsPage />} />
                 <Route path="/wallet" element={<WalletPage />} />
                 <Route path="/how-it-works" element={<HowItWorksPage />} />
+                <Route path="/post/:postId" element={<PostDetailPage />} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </AppLayout>

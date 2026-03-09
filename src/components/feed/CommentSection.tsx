@@ -1,10 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Send, Loader2 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { feedAPI, Comment } from "@/lib/api/feed";
 import { useProfile } from "@/hooks/use-profile";
 import { toast } from "sonner";
+import EmojiPicker from "./EmojiPicker";
 
 function timeAgo(dateStr: string) {
   const diff = Date.now() - new Date(dateStr).getTime();
@@ -27,6 +28,7 @@ export default function CommentSection({ postId, onCommentAdded }: Props) {
   const [loading, setLoading] = useState(true);
   const [text, setText] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     feedAPI.getComments(postId).then((c) => {
@@ -85,8 +87,13 @@ export default function CommentSection({ postId, onCommentAdded }: Props) {
 
       {/* Input */}
       {profile && (
-        <div className="flex items-center gap-2 mt-3">
+        <div className="flex items-center gap-1 mt-3">
+          <EmojiPicker onSelect={(emoji) => {
+            setText((prev) => prev + emoji);
+            inputRef.current?.focus();
+          }} />
           <input
+            ref={inputRef}
             value={text}
             onChange={(e) => setText(e.target.value)}
             placeholder="Write a comment..."
