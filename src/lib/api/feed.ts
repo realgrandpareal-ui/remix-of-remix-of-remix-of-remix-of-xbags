@@ -127,6 +127,41 @@ export const feedAPI = {
     return { posts, hasMore: (data || []).length === limit };
   },
 
+  // ─── GET REPOSTS (for home feed merge) ─────────────────
+  async getRepostsForFeed(page: number = 1, limit: number = 20) {
+    const { data, error } = await supabase
+      .from("post_reposts")
+      .select(`
+        id, post_id, user_id, quote_content, created_at,
+        profiles!post_reposts_user_id_fkey(id, username, display_name),
+        posts!post_reposts_post_id_fkey(*, profiles!posts_user_id_fkey(${PROFILE_SELECT}))
+      `)
+      .order("created_at", { ascending: false })
+      .range((page - 1) * limit, page * limit - 1);
+
+    if (error) throw error;
+
+    return (data || []).map((r: any) => {
+      const originalPost = r.posts;
+      if (!originalPost) return null;
+      return {
+        ...originalPost,
+        media_urls: originalPost.media_urls || [],
+        reposts_count: originalPost.reposts_count || 0,
+        author: originalPost.profiles || undefined,
+        repost_type: r.quote_content ? "quote" as const : "repost" as const,
+        reposted_by: r.profiles ? {
+          id: r.profiles.id,
+          username: r.profiles.username,
+          display_name: r.profiles.display_name,
+        } : undefined,
+        quote_content: r.quote_content || undefined,
+        repost_created_at: r.created_at,
+        sort_time: r.created_at,
+      } as Post;
+    }).filter(Boolean) as Post[];
+  },
+
   // ─── CREATE POST ───────────────────────────────────────
   async createPost(
     userId: string,
