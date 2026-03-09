@@ -269,6 +269,12 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      decrement_comments: { Args: { p_post_id: string }; Returns: undefined }
+      decrement_likes: { Args: { p_post_id: string }; Returns: undefined }
+      decrement_reposts: { Args: { p_post_id: string }; Returns: undefined }
+      increment_comments: { Args: { p_post_id: string }; Returns: undefined }
+      increment_likes: { Args: { p_post_id: string }; Returns: undefined }
+      increment_reposts: { Args: { p_post_id: string }; Returns: undefined }
       increment_views: { Args: { post_id: string }; Returns: undefined }
       profile_exists: { Args: { profile_id: string }; Returns: boolean }
     }
