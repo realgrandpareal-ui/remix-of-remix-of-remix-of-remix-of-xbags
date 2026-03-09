@@ -87,8 +87,13 @@ export default function CommentSection({ postId, onCommentAdded }: Props) {
 
       {/* Input */}
       {profile && (
-        <div className="flex items-center gap-2 mt-3">
+        <div className="flex items-center gap-1 mt-3">
+          <EmojiPicker onSelect={(emoji) => {
+            setText((prev) => prev + emoji);
+            inputRef.current?.focus();
+          }} />
           <input
+            ref={inputRef}
             value={text}
             onChange={(e) => setText(e.target.value)}
             placeholder="Write a comment..."
