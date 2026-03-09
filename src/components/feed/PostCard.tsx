@@ -203,15 +203,20 @@ export default function PostCard({ post, onUpdate, onDelete, index }: PostCardPr
               )}
             </div>
 
-            {/* Content */}
-            <p className="text-sm text-foreground leading-relaxed mt-1 whitespace-pre-line">
-              {contentLong && !expanded ? `${post.content.slice(0, 200)}...` : post.content}
-            </p>
-            {contentLong && (
-              <button onClick={() => setExpanded(!expanded)} className="text-xs text-primary mt-1 hover:underline">
-                {expanded ? "Show less" : "Show more"}
-              </button>
-            )}
+            {/* Content - clickable to navigate to post detail */}
+            <div onClick={() => navigate(`/post/${post.id}`)} className="cursor-pointer">
+              <p className="text-sm text-foreground leading-relaxed mt-1 whitespace-pre-line">
+                {contentLong && !expanded ? `${post.content.slice(0, 200)}...` : post.content}
+              </p>
+              {contentLong && (
+                <button onClick={(e) => { e.stopPropagation(); setExpanded(!expanded); }} className="text-xs text-primary mt-1 hover:underline">
+                  {expanded ? "Show less" : "Show more"}
+                </button>
+              )}
+            </div>
+
+            {/* Timestamp */}
+            <p className="text-[11px] text-muted-foreground mt-1.5">{formatDate(post.created_at)}</p>
 
             {/* Media */}
             {post.media_urls && post.media_urls.length > 0 && (
