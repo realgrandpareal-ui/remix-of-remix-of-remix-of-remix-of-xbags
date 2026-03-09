@@ -151,11 +151,6 @@ export const feedAPI = {
       .from("post_likes")
       .insert({ post_id: postId, user_id: userId } as any);
     if (error && !error.message.includes("duplicate")) throw error;
-    
-    // Update likes count
-    await supabase.rpc("increment_post_likes", { post_id: postId }).catch(() => {
-      // Fallback if RPC doesn't exist
-    });
   },
 
   async unlikePost(postId: string, userId: string) {
