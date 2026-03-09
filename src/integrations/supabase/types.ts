@@ -270,6 +270,7 @@ export type Database = {
     }
     Functions: {
       increment_views: { Args: { post_id: string }; Returns: undefined }
+      profile_exists: { Args: { profile_id: string }; Returns: boolean }
     }
     Enums: {
       [_ in never]: never
