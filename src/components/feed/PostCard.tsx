@@ -185,7 +185,7 @@ export default function PostCard({ post, onUpdate, onDelete, index }: PostCardPr
               <div className="flex items-center gap-1.5 min-w-0">
                 <span className="font-semibold text-sm text-foreground truncate">{displayName}</span>
                 <span className="text-sm text-muted-foreground truncate">{username}</span>
-                <span className="text-xs text-muted-foreground">· {timeAgo(post.created_at)}</span>
+                <span className="text-xs text-muted-foreground" title={formatDate(post.created_at)}>· {timeAgo(post.created_at)}</span>
               </div>
               {isOwn && (
                 <DropdownMenu>
