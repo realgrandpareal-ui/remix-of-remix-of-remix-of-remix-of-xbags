@@ -35,7 +35,7 @@ export function useFeed(tab: FeedTab) {
             if (mountedRef.current && reposts.length > 0) {
               // Deduplicate — don't show a repost if the original post is already in the feed
               const existingIds = new Set(combinedPosts.map((p) => p.id));
-              const uniqueReposts = reposts.filter((r) => !existingIds.has(r.id));
+              const uniqueReposts: Post[] = reposts.filter((r) => !existingIds.has(r.id));
               combinedPosts = [...combinedPosts, ...uniqueReposts]
                 .sort((a, b) =>
                   new Date(b.sort_time || b.created_at).getTime() -
