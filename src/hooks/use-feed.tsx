@@ -23,10 +23,34 @@ export function useFeed(tab: FeedTab) {
         const result = await feedAPI.getFeed(tab, pageNum, 20, profile?.id);
         if (!mountedRef.current) return;
 
+        let combinedPosts = result.posts.map((p) => ({
+          ...p,
+          sort_time: p.sort_time || p.created_at,
+        }));
+
+        // On "home" tab, merge reposts into feed
+        if (tab === "home" && pageNum === 1) {
+          try {
+            const reposts = await feedAPI.getRepostsForFeed(1, 20);
+            if (mountedRef.current && reposts.length > 0) {
+              // Deduplicate — don't show a repost if the original post is already in the feed
+              const existingIds = new Set(combinedPosts.map((p) => p.id));
+              const uniqueReposts = reposts.filter((r) => !existingIds.has(r.id));
+              combinedPosts = [...combinedPosts, ...uniqueReposts]
+                .sort((a, b) =>
+                  new Date(b.sort_time || b.created_at).getTime() -
+                  new Date(a.sort_time || a.created_at).getTime()
+                );
+            }
+          } catch {
+            // Silently fail — reposts are supplementary
+          }
+        }
+
         if (append) {
-          setPosts((prev) => [...prev, ...result.posts]);
+          setPosts((prev) => [...prev, ...combinedPosts]);
         } else {
-          setPosts(result.posts);
+          setPosts(combinedPosts);
         }
         setHasMore(result.hasMore);
         setPage(pageNum);
