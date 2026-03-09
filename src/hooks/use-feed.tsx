@@ -50,18 +50,107 @@ export function useFeed(tab: FeedTab) {
     };
   }, [fetchFeed]);
 
-  // Realtime subscription
+  // Realtime subscriptions for all post-related changes
   useEffect(() => {
-    const channel = supabase
+    // Posts channel - for new posts, updates, deletes
+    const postsChannel = supabase
       .channel("posts-realtime")
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "posts" }, () => {
-        // Refresh feed on new post
-        fetchFeed(1);
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "posts" }, (payload) => {
+        // Add new post to the top if it's published
+        if (payload.new && (payload.new as any).is_published) {
+          fetchFeed(1);
+        }
+      })
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "posts" }, (payload) => {
+        // Update post in list
+        if (payload.new) {
+          const updated = payload.new as any;
+          setPosts((prev) =>
+            prev.map((p) =>
+              p.id === updated.id
+                ? {
+                    ...p,
+                    likes_count: updated.likes_count ?? p.likes_count,
+                    comments_count: updated.comments_count ?? p.comments_count,
+                    shares_count: updated.shares_count ?? p.shares_count,
+                    reposts_count: updated.reposts_count ?? p.reposts_count,
+                    views_count: updated.views_count ?? p.views_count,
+                  }
+                : p
+            )
+          );
+        }
+      })
+      .on("postgres_changes", { event: "DELETE", schema: "public", table: "posts" }, (payload) => {
+        if (payload.old) {
+          setPosts((prev) => prev.filter((p) => p.id !== (payload.old as any).id));
+        }
+      })
+      .subscribe();
+
+    // Likes channel - for real-time like updates
+    const likesChannel = supabase
+      .channel("likes-realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "post_likes" }, (payload) => {
+        const postId = (payload.new as any)?.post_id || (payload.old as any)?.post_id;
+        if (postId) {
+          // Refetch post count from DB or update locally
+          setPosts((prev) =>
+            prev.map((p) => {
+              if (p.id === postId) {
+                const delta = payload.eventType === "INSERT" ? 1 : payload.eventType === "DELETE" ? -1 : 0;
+                return { ...p, likes_count: Math.max(0, p.likes_count + delta) };
+              }
+              return p;
+            })
+          );
+        }
+      })
+      .subscribe();
+
+    // Reposts channel
+    const repostsChannel = supabase
+      .channel("reposts-realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "post_reposts" }, (payload) => {
+        const postId = (payload.new as any)?.post_id || (payload.old as any)?.post_id;
+        if (postId) {
+          setPosts((prev) =>
+            prev.map((p) => {
+              if (p.id === postId) {
+                const delta = payload.eventType === "INSERT" ? 1 : payload.eventType === "DELETE" ? -1 : 0;
+                return { ...p, reposts_count: Math.max(0, (p.reposts_count || 0) + delta) };
+              }
+              return p;
+            })
+          );
+        }
+      })
+      .subscribe();
+
+    // Comments channel
+    const commentsChannel = supabase
+      .channel("comments-realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "post_comments" }, (payload) => {
+        const postId = (payload.new as any)?.post_id || (payload.old as any)?.post_id;
+        if (postId) {
+          setPosts((prev) =>
+            prev.map((p) => {
+              if (p.id === postId) {
+                const delta = payload.eventType === "INSERT" ? 1 : payload.eventType === "DELETE" ? -1 : 0;
+                return { ...p, comments_count: Math.max(0, p.comments_count + delta) };
+              }
+              return p;
+            })
+          );
+        }
       })
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      supabase.removeChannel(postsChannel);
+      supabase.removeChannel(likesChannel);
+      supabase.removeChannel(repostsChannel);
+      supabase.removeChannel(commentsChannel);
     };
   }, [fetchFeed]);
 

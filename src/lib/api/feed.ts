@@ -11,6 +11,7 @@ export interface Post {
   likes_count: number;
   comments_count: number;
   shares_count: number;
+  reposts_count: number;
   views_count: number;
   created_at: string;
   updated_at: string;
@@ -24,7 +25,11 @@ export interface Post {
   };
   // Client state
   is_liked?: boolean;
+  is_reposted?: boolean;
   is_unlocked?: boolean;
+  // For quote retweets
+  quoted_post?: Post;
+  quote_content?: string;
 }
 
 export interface Comment {
@@ -70,20 +75,34 @@ export const feedAPI = {
     const posts: Post[] = (data || []).map((p: any) => ({
       ...p,
       media_urls: p.media_urls || [],
+      reposts_count: p.reposts_count || 0,
       author: p.profiles || undefined,
     }));
 
-    // Check likes for current user
+    // Check likes and reposts for current user
     if (currentUserProfileId && posts.length > 0) {
       const postIds = posts.map((p) => p.id);
-      const { data: likes } = await supabase
-        .from("post_likes")
-        .select("post_id")
-        .in("post_id", postIds)
-        .eq("user_id", currentUserProfileId);
+      
+      const [likesRes, repostsRes] = await Promise.all([
+        supabase
+          .from("post_likes")
+          .select("post_id")
+          .in("post_id", postIds)
+          .eq("user_id", currentUserProfileId),
+        supabase
+          .from("post_reposts")
+          .select("post_id")
+          .in("post_id", postIds)
+          .eq("user_id", currentUserProfileId)
+      ]);
 
-      const likedSet = new Set((likes || []).map((l: any) => l.post_id));
-      posts.forEach((p) => (p.is_liked = likedSet.has(p.id)));
+      const likedSet = new Set((likesRes.data || []).map((l: any) => l.post_id));
+      const repostedSet = new Set((repostsRes.data || []).map((r: any) => r.post_id));
+      
+      posts.forEach((p) => {
+        p.is_liked = likedSet.has(p.id);
+        p.is_reposted = repostedSet.has(p.id);
+      });
 
       // Check unlocks
       const { data: unlocks } = await supabase
@@ -132,11 +151,35 @@ export const feedAPI = {
       .from("post_likes")
       .insert({ post_id: postId, user_id: userId } as any);
     if (error && !error.message.includes("duplicate")) throw error;
+    
+    // Update likes count
+    await supabase.rpc("increment_post_likes", { post_id: postId }).catch(() => {
+      // Fallback if RPC doesn't exist
+    });
   },
 
   async unlikePost(postId: string, userId: string) {
     await supabase
       .from("post_likes")
+      .delete()
+      .eq("post_id", postId)
+      .eq("user_id", userId);
+  },
+
+  async repost(postId: string, userId: string, quoteContent?: string) {
+    const { error } = await supabase
+      .from("post_reposts")
+      .insert({ 
+        post_id: postId, 
+        user_id: userId,
+        quote_content: quoteContent || null
+      } as any);
+    if (error && !error.message.includes("duplicate")) throw error;
+  },
+
+  async unrepost(postId: string, userId: string) {
+    await supabase
+      .from("post_reposts")
       .delete()
       .eq("post_id", postId)
       .eq("user_id", userId);
@@ -170,6 +213,29 @@ export const feedAPI = {
   async deletePost(postId: string) {
     const { error } = await supabase.from("posts").delete().eq("id", postId);
     if (error) throw error;
+  },
+
+  async incrementViews(postId: string) {
+    const { error } = await supabase
+      .from("posts")
+      .update({ views_count: supabase.rpc ? undefined : 0 } as any)
+      .eq("id", postId);
+    
+    // Direct increment using raw update
+    await supabase.rpc("increment_post_views", { p_post_id: postId }).catch(async () => {
+      // Fallback: fetch and update
+      const { data } = await supabase.from("posts").select("views_count").eq("id", postId).single();
+      if (data) {
+        await supabase.from("posts").update({ views_count: (data.views_count || 0) + 1 } as any).eq("id", postId);
+      }
+    });
+  },
+
+  async incrementShares(postId: string) {
+    const { data } = await supabase.from("posts").select("shares_count").eq("id", postId).single();
+    if (data) {
+      await supabase.from("posts").update({ shares_count: (data.shares_count || 0) + 1 } as any).eq("id", postId);
+    }
   },
 
   async recordUnlock(postId: string, userWallet: string, amountSol: number, signature: string) {
