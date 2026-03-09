@@ -100,6 +100,7 @@ export default function PostCard({ post, onUpdate, onDelete, index }: PostCardPr
 
   const handleRepost = async () => {
     if (!profile) return toast.error("Connect wallet first");
+    if (reposting) return;
     setReposting(true);
     try {
       if (post.is_reposted) {
@@ -111,9 +112,14 @@ export default function PostCard({ post, onUpdate, onDelete, index }: PostCardPr
         onUpdate(post.id, { is_reposted: true, reposts_count: (post.reposts_count || 0) + 1 });
         toast.success("Reposted!");
       }
-    } catch (err) {
-      console.error(err);
-      toast.error("Failed to repost");
+    } catch (err: any) {
+      if (err?.message?.includes("duplicate") || err?.code === "23505") {
+        onUpdate(post.id, { is_reposted: true });
+        toast.info("Already reposted");
+      } else {
+        console.error(err);
+        toast.error("Failed to repost");
+      }
     } finally {
       setReposting(false);
     }
