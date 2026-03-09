@@ -242,4 +242,31 @@ export const feedAPI = {
     const { data: urlData } = supabase.storage.from("avatars").getPublicUrl(path);
     return urlData.publicUrl;
   },
+
+  // Alias: Quote retweet (uses post_reposts table)
+  async quoteRetweet(postId: string, userId: string, quoteText: string) {
+    const { error } = await supabase
+      .from("post_reposts")
+      .insert({
+        post_id: postId,
+        user_id: userId,
+        quote_content: quoteText,
+      } as any);
+    if (error && !error.message.includes("duplicate")) throw error;
+  },
+
+  // Get replies for a post (uses post_comments table)
+  async getReplies(postId: string) {
+    const { data, error } = await supabase
+      .from("post_comments")
+      .select("*, profiles!post_comments_user_id_fkey(username, display_name, avatar_url)")
+      .eq("post_id", postId)
+      .order("created_at", { ascending: true });
+
+    if (error) throw error;
+    return (data || []).map((c: any) => ({
+      ...c,
+      author: c.profiles || undefined,
+    })) as Comment[];
+  },
 };
