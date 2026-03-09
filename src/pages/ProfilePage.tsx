@@ -12,7 +12,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { Profile } from "@/hooks/use-profile";
 import type { Post } from "@/lib/api/feed";
 import PostCard from "@/components/feed/PostCard";
-import { PostSkeleton } from "@/components/feed/PostSkeleton";
+import PostSkeleton from "@/components/feed/PostSkeleton";
 
 const ProfilePage = () => {
   const { username } = useParams();
