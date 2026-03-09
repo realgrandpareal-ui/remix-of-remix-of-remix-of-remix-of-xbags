@@ -155,6 +155,24 @@ export default function PostCard({ post, onUpdate, onDelete, index }: PostCardPr
         transition={{ delay: index * 0.03, duration: 0.3 }}
         className="px-4 py-4 hover:bg-muted/30 transition-colors border-b border-border cursor-pointer"
       >
+        {/* Repost header */}
+        {post.reposted_by && (
+          <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2 ml-12">
+            <Repeat2 className="h-3.5 w-3.5" />
+            <span>
+              {post.reposted_by.display_name || post.reposted_by.username || "Someone"}{" "}
+              {post.repost_type === "quote" ? "quoted" : "reposted"}
+            </span>
+          </div>
+        )}
+
+        {/* Quote content (if quote tweet) */}
+        {post.repost_type === "quote" && post.quote_content && (
+          <div className="ml-12 mb-2 p-2.5 rounded-lg border border-border bg-muted/20 text-sm text-foreground">
+            {post.quote_content}
+          </div>
+        )}
+
         <div className="flex gap-3">
           {/* Avatar */}
           <Avatar className="h-10 w-10 shrink-0 ring-2 ring-transparent hover:ring-primary/30 transition-all">
