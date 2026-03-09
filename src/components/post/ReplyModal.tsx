@@ -14,9 +14,10 @@ interface ReplyModalProps {
 }
 
 export function ReplyModal({ post, onClose, onReply }: ReplyModalProps) {
-  const { isConnected } = useWallet();
+  const { status } = useWallet();
   const { profile } = useProfile();
   const [content, setContent] = useState('');
+  const isConnected = status === 'connected';
   const [loading, setLoading] = useState(false);
 
   async function handleReply() {
