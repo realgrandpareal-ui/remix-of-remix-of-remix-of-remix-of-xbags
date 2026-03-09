@@ -18,6 +18,7 @@ export const NAV_ITEMS = [
   { title: "Leaderboard", url: "/leaderboard", icon: Trophy },
   { title: "Analytics", url: "/analytics", icon: BarChart3 },
   { title: "Referral", url: "/referral", icon: Users },
+  { title: "Profile", url: "/profile/me", icon: User },
   { title: "Settings", url: "/settings", icon: Settings },
 ] as const;
 
