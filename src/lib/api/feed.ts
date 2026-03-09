@@ -27,6 +27,16 @@ export interface Post {
   is_unlocked?: boolean;
   quoted_post?: Post;
   quote_content?: string;
+  // Repost metadata
+  repost_type?: "repost" | "quote";
+  reposted_by?: {
+    id: string;
+    username: string | null;
+    display_name: string | null;
+  };
+  repost_created_at?: string;
+  /** Used for feed sorting — repost time or post created_at */
+  sort_time?: string;
 }
 
 export interface Comment {
