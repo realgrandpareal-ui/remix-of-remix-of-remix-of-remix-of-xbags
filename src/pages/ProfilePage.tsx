@@ -9,6 +9,7 @@ import { useProfile } from "@/hooks/use-profile";
 import { useWallet } from "@/hooks/use-wallet";
 import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { feedAPI } from "@/lib/api/feed";
 import type { Profile } from "@/hooks/use-profile";
 import type { Post } from "@/lib/api/feed";
 import PostCard from "@/components/feed/PostCard";
@@ -21,8 +22,11 @@ const ProfilePage = () => {
   const [viewProfile, setViewProfile] = useState<Profile | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [posts, setPosts] = useState<Post[]>([]);
+  const [reposts, setReposts] = useState<Post[]>([]);
   const [postsLoading, setPostsLoading] = useState(false);
+  const [repostsLoading, setRepostsLoading] = useState(false);
   const [postsCount, setPostsCount] = useState(0);
+  const [activeTab, setActiveTab] = useState("posts");
 
   const isOwnProfile = !username || username === "me" || username === myProfile?.username;
 
@@ -43,7 +47,7 @@ const ProfilePage = () => {
     }
   }, [username, myProfile, isOwnProfile]);
 
-  // Load user posts
+  // Load user's original posts (tweet type only)
   useEffect(() => {
     if (!viewProfile?.id) return;
     setPostsLoading(true);
@@ -51,21 +55,32 @@ const ProfilePage = () => {
     Promise.all([
       supabase
         .from("posts")
-        .select("*, profiles!posts_user_id_fkey(id, username, display_name, avatar_url, wallet_address)")
+        .select(`
+          *,
+          profiles!posts_user_id_fkey(id, username, display_name, avatar_url, wallet_address),
+          parent_post:posts!posts_parent_post_id_fkey(
+            *,
+            profiles!posts_user_id_fkey(id, username, display_name, avatar_url, wallet_address)
+          )
+        `)
         .eq("user_id", viewProfile.id)
         .eq("is_published", true)
+        .eq("post_type", "tweet" as any)
         .order("created_at", { ascending: false })
         .limit(50),
       supabase
         .from("posts")
         .select("id", { count: "exact" })
         .eq("user_id", viewProfile.id)
-        .eq("is_published", true),
+        .eq("is_published", true)
+        .eq("post_type", "tweet" as any),
     ]).then(([postsRes, countRes]) => {
       const formattedPosts: Post[] = (postsRes.data || []).map((p: any) => ({
         ...p,
         media_urls: p.media_urls || [],
         reposts_count: p.reposts_count || 0,
+        post_type: p.post_type || "tweet",
+        parent_post_id: p.parent_post_id || null,
         author: p.profiles || undefined,
       }));
       setPosts(formattedPosts);
@@ -74,12 +89,24 @@ const ProfilePage = () => {
     });
   }, [viewProfile?.id]);
 
+  // Load reposts when tab is active
+  useEffect(() => {
+    if (activeTab !== "reposts" || !viewProfile?.id) return;
+    setRepostsLoading(true);
+    feedAPI.getUserReposts(viewProfile.id).then((data) => {
+      setReposts(data);
+      setRepostsLoading(false);
+    }).catch(() => setRepostsLoading(false));
+  }, [activeTab, viewProfile?.id]);
+
   const handlePostUpdate = useCallback((postId: string, updates: Partial<Post>) => {
     setPosts(prev => prev.map(p => p.id === postId ? { ...p, ...updates } : p));
+    setReposts(prev => prev.map(p => p.id === postId ? { ...p, ...updates } : p));
   }, []);
 
   const handlePostDelete = useCallback((postId: string) => {
     setPosts(prev => prev.filter(p => p.id !== postId));
+    setReposts(prev => prev.filter(p => p.id !== postId));
     setPostsCount(c => c - 1);
   }, []);
 
@@ -133,16 +160,19 @@ const ProfilePage = () => {
 
       {/* Posts Section with Tabs */}
       <div className="mt-8">
-        <Tabs defaultValue="posts" className="w-full">
-          <TabsList className="grid w-full grid-cols-3 bg-card border border-border">
+        <Tabs defaultValue="posts" className="w-full" onValueChange={setActiveTab}>
+          <TabsList className="grid w-full grid-cols-4 bg-card border border-border">
             <TabsTrigger value="posts" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground text-muted-foreground">
               Posts
+            </TabsTrigger>
+            <TabsTrigger value="reposts" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground text-muted-foreground">
+              Reposts
             </TabsTrigger>
             <TabsTrigger value="replies" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground text-muted-foreground">
               Replies
             </TabsTrigger>
-            <TabsTrigger value="likes" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground text-muted-foreground">
-              Likes
+            <TabsTrigger value="media" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground text-muted-foreground">
+              Media
             </TabsTrigger>
           </TabsList>
 
@@ -164,12 +194,30 @@ const ProfilePage = () => {
             )}
           </TabsContent>
 
+          <TabsContent value="reposts" className="mt-4 space-y-0">
+            {repostsLoading ? (
+              [1, 2, 3].map((_, i) => <PostSkeleton key={i} />)
+            ) : reposts.length > 0 ? (
+              reposts.map((post, i) => (
+                <PostCard
+                  key={post.id}
+                  post={post}
+                  onUpdate={handlePostUpdate}
+                  onDelete={handlePostDelete}
+                  index={i}
+                />
+              ))
+            ) : (
+              <div className="text-center py-12 text-muted-foreground text-sm">No reposts yet</div>
+            )}
+          </TabsContent>
+
           <TabsContent value="replies" className="mt-4">
             <div className="text-center py-12 text-muted-foreground text-sm">Replies coming soon</div>
           </TabsContent>
 
-          <TabsContent value="likes" className="mt-4">
-            <div className="text-center py-12 text-muted-foreground text-sm">Liked posts coming soon</div>
+          <TabsContent value="media" className="mt-4">
+            <div className="text-center py-12 text-muted-foreground text-sm">Media posts coming soon</div>
           </TabsContent>
         </Tabs>
       </div>
