@@ -23,7 +23,7 @@ export function useFeed(tab: FeedTab) {
         const result = await feedAPI.getFeed(tab, pageNum, 20, profile?.id);
         if (!mountedRef.current) return;
 
-        let combinedPosts = result.posts.map((p) => ({
+        let combinedPosts: Post[] = result.posts.map((p) => ({
           ...p,
           sort_time: p.sort_time || p.created_at,
         }));
