@@ -47,6 +47,7 @@ const App = () => (
                 <Route path="/settings" element={<SettingsPage />} />
                 <Route path="/wallet" element={<WalletPage />} />
                 <Route path="/how-it-works" element={<HowItWorksPage />} />
+                <Route path="/post/:postId" element={<PostDetailPage />} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </AppLayout>
