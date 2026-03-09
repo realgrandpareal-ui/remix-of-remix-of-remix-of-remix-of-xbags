@@ -211,10 +211,8 @@ export const feedAPI = {
   },
 
   async incrementViews(postId: string) {
-    const { data } = await supabase.from("posts").select("views_count").eq("id", postId).single();
-    if (data) {
-      await supabase.from("posts").update({ views_count: (data.views_count || 0) + 1 } as any).eq("id", postId);
-    }
+    const { error } = await supabase.rpc('increment_views' as any, { post_id: postId });
+    if (error) throw error;
   },
 
   async incrementShares(postId: string) {
