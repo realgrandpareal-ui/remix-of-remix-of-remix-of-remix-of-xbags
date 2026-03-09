@@ -174,6 +174,8 @@ export type Database = {
           likes_count: number | null
           media_type: string | null
           media_urls: string[] | null
+          parent_post_id: string | null
+          post_type: string
           reposts_count: number | null
           scheduled_at: string | null
           shares_count: number | null
@@ -192,6 +194,8 @@ export type Database = {
           likes_count?: number | null
           media_type?: string | null
           media_urls?: string[] | null
+          parent_post_id?: string | null
+          post_type?: string
           reposts_count?: number | null
           scheduled_at?: string | null
           shares_count?: number | null
@@ -210,6 +214,8 @@ export type Database = {
           likes_count?: number | null
           media_type?: string | null
           media_urls?: string[] | null
+          parent_post_id?: string | null
+          post_type?: string
           reposts_count?: number | null
           scheduled_at?: string | null
           shares_count?: number | null
@@ -219,6 +225,13 @@ export type Database = {
           views_count?: number | null
         }
         Relationships: [
+          {
+            foreignKeyName: "posts_parent_post_id_fkey"
+            columns: ["parent_post_id"]
+            isOneToOne: false
+            referencedRelation: "posts"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "posts_user_id_fkey"
             columns: ["user_id"]
@@ -274,6 +287,7 @@ export type Database = {
       decrement_reposts: { Args: { p_post_id: string }; Returns: undefined }
       increment_comments: { Args: { p_post_id: string }; Returns: undefined }
       increment_likes: { Args: { p_post_id: string }; Returns: undefined }
+      increment_quotes: { Args: { p_post_id: string }; Returns: undefined }
       increment_reposts: { Args: { p_post_id: string }; Returns: undefined }
       increment_views: { Args: { post_id: string }; Returns: undefined }
       profile_exists: { Args: { profile_id: string }; Returns: boolean }

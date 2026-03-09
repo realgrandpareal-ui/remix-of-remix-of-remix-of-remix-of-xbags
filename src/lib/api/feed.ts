@@ -15,6 +15,8 @@ export interface Post {
   views_count: number;
   created_at: string;
   updated_at: string;
+  post_type: "tweet" | "repost" | "quote";
+  parent_post_id: string | null;
   author?: {
     id: string;
     username: string | null;
@@ -22,20 +24,11 @@ export interface Post {
     avatar_url: string | null;
     wallet_address: string;
   };
+  parent_post?: Post;
   is_liked?: boolean;
   is_reposted?: boolean;
   is_unlocked?: boolean;
-  quoted_post?: Post;
-  quote_content?: string;
-  // Repost metadata
-  repost_type?: "repost" | "quote";
-  reposted_by?: {
-    id: string;
-    username: string | null;
-    display_name: string | null;
-  };
-  repost_created_at?: string;
-  /** Used for feed sorting — repost time or post created_at */
+  /** Used for feed sorting */
   sort_time?: string;
 }
 
@@ -54,6 +47,41 @@ export interface Comment {
 
 const PROFILE_SELECT = "id, username, display_name, avatar_url, wallet_address";
 
+function mapPost(p: any): Post {
+  const post: Post = {
+    ...p,
+    media_urls: p.media_urls || [],
+    reposts_count: p.reposts_count || 0,
+    post_type: p.post_type || "tweet",
+    parent_post_id: p.parent_post_id || null,
+    author: p.profiles || undefined,
+  };
+
+  // Map parent post if joined
+  if (p.parent_post && !Array.isArray(p.parent_post)) {
+    post.parent_post = {
+      ...p.parent_post,
+      media_urls: p.parent_post.media_urls || [],
+      reposts_count: p.parent_post.reposts_count || 0,
+      post_type: p.parent_post.post_type || "tweet",
+      parent_post_id: p.parent_post.parent_post_id || null,
+      author: p.parent_post.profiles || undefined,
+    };
+  } else if (Array.isArray(p.parent_post) && p.parent_post.length > 0) {
+    const pp = p.parent_post[0];
+    post.parent_post = {
+      ...pp,
+      media_urls: pp.media_urls || [],
+      reposts_count: pp.reposts_count || 0,
+      post_type: pp.post_type || "tweet",
+      parent_post_id: pp.parent_post_id || null,
+      author: pp.profiles || undefined,
+    };
+  }
+
+  return post;
+}
+
 export const feedAPI = {
   // ─── FEED ──────────────────────────────────────────────
   async getFeed(
@@ -64,7 +92,14 @@ export const feedAPI = {
   ) {
     let query = supabase
       .from("posts")
-      .select(`*, profiles!posts_user_id_fkey(${PROFILE_SELECT})`)
+      .select(`
+        *,
+        profiles!posts_user_id_fkey(${PROFILE_SELECT}),
+        parent_post:posts!posts_parent_post_id_fkey(
+          *,
+          profiles!posts_user_id_fkey(${PROFILE_SELECT})
+        )
+      `)
       .eq("is_published", true)
       .range((page - 1) * limit, page * limit - 1);
 
@@ -79,12 +114,7 @@ export const feedAPI = {
     const { data, error } = await query;
     if (error) throw error;
 
-    const posts: Post[] = (data || []).map((p: any) => ({
-      ...p,
-      media_urls: p.media_urls || [],
-      reposts_count: p.reposts_count || 0,
-      author: p.profiles || undefined,
-    }));
+    const posts: Post[] = (data || []).map(mapPost);
 
     if (currentUserProfileId && posts.length > 0) {
       const postIds = posts.map((p) => p.id);
@@ -127,41 +157,6 @@ export const feedAPI = {
     return { posts, hasMore: (data || []).length === limit };
   },
 
-  // ─── GET REPOSTS (for home feed merge) ─────────────────
-  async getRepostsForFeed(page: number = 1, limit: number = 20) {
-    const { data, error } = await supabase
-      .from("post_reposts")
-      .select(`
-        id, post_id, user_id, quote_content, created_at,
-        profiles!post_reposts_user_id_fkey(id, username, display_name),
-        posts!post_reposts_post_id_fkey(*, profiles!posts_user_id_fkey(${PROFILE_SELECT}))
-      `)
-      .order("created_at", { ascending: false })
-      .range((page - 1) * limit, page * limit - 1);
-
-    if (error) throw error;
-
-    return (data || []).map((r: any) => {
-      const originalPost = r.posts;
-      if (!originalPost) return null;
-      return {
-        ...originalPost,
-        media_urls: originalPost.media_urls || [],
-        reposts_count: originalPost.reposts_count || 0,
-        author: originalPost.profiles || undefined,
-        repost_type: r.quote_content ? "quote" as const : "repost" as const,
-        reposted_by: r.profiles ? {
-          id: r.profiles.id,
-          username: r.profiles.username,
-          display_name: r.profiles.display_name,
-        } : undefined,
-        quote_content: r.quote_content || undefined,
-        repost_created_at: r.created_at,
-        sort_time: r.created_at,
-      } as Post;
-    }).filter(Boolean) as Post[];
-  },
-
   // ─── CREATE POST ───────────────────────────────────────
   async createPost(
     userId: string,
@@ -181,19 +176,79 @@ export const feedAPI = {
         media_type: mediaType,
         is_locked: isLocked,
         unlock_price_sol: unlockPrice,
+        post_type: "tweet",
         ...(scheduledAt ? { scheduled_at: scheduledAt, is_published: false } : {}),
       } as any)
       .select(`*, profiles!posts_user_id_fkey(${PROFILE_SELECT})`)
       .single();
 
     if (error) throw error;
-    return { ...data, author: (data as any).profiles } as Post;
+    return mapPost(data);
+  },
+
+  // ─── REPOST (creates a new post with post_type=repost) ─
+  async createRepost(originalPostId: string, userId: string) {
+    // Check if already reposted
+    const { data: existing } = await supabase
+      .from("posts")
+      .select("id")
+      .eq("user_id", userId)
+      .eq("parent_post_id", originalPostId)
+      .eq("post_type", "repost" as any)
+      .maybeSingle();
+
+    if (existing) {
+      // Undo repost — delete the repost post
+      await supabase.from("posts").delete().eq("id", existing.id);
+      await supabase.rpc("decrement_reposts" as any, { p_post_id: originalPostId });
+      return { reposted: false };
+    }
+
+    // Create repost
+    const { error } = await supabase
+      .from("posts")
+      .insert({
+        user_id: userId,
+        content: "",
+        parent_post_id: originalPostId,
+        post_type: "repost",
+        is_published: true,
+      } as any);
+
+    if (error) throw error;
+    await supabase.rpc("increment_reposts" as any, { p_post_id: originalPostId });
+    return { reposted: true };
+  },
+
+  // ─── QUOTE TWEET (creates a new post with post_type=quote) ─
+  async createQuote(originalPostId: string, userId: string, quoteContent: string) {
+    const { data, error } = await supabase
+      .from("posts")
+      .insert({
+        user_id: userId,
+        content: quoteContent,
+        parent_post_id: originalPostId,
+        post_type: "quote",
+        is_published: true,
+      } as any)
+      .select(`
+        *,
+        profiles!posts_user_id_fkey(${PROFILE_SELECT}),
+        parent_post:posts!posts_parent_post_id_fkey(
+          *,
+          profiles!posts_user_id_fkey(${PROFILE_SELECT})
+        )
+      `)
+      .single();
+
+    if (error) throw error;
+    await supabase.rpc("increment_reposts" as any, { p_post_id: originalPostId });
+    return mapPost(data);
   },
 
   // ─── LIKE / UNLIKE (toggle, 1 per user) ────────────────
   async toggleLike(postId: string, userId: string, currentlyLiked: boolean) {
     if (currentlyLiked) {
-      // Unlike
       const { error } = await supabase
         .from("post_likes")
         .delete()
@@ -203,12 +258,11 @@ export const feedAPI = {
       await supabase.rpc("decrement_likes" as any, { p_post_id: postId });
       return false;
     } else {
-      // Like — unique constraint prevents duplicates
       const { error } = await supabase
         .from("post_likes")
         .insert({ post_id: postId, user_id: userId } as any);
       if (error) {
-        if (error.code === "23505") return true; // already liked
+        if (error.code === "23505") return true;
         throw error;
       }
       await supabase.rpc("increment_likes" as any, { p_post_id: postId });
@@ -216,7 +270,7 @@ export const feedAPI = {
     }
   },
 
-  // ─── REPOST / UNREPOST (toggle, 1 per user) ────────────
+  // ─── LEGACY REPOST TOGGLE (for post_reposts table) ─────
   async toggleRepost(postId: string, userId: string, currentlyReposted: boolean) {
     if (currentlyReposted) {
       const { error } = await supabase
@@ -232,7 +286,7 @@ export const feedAPI = {
         .from("post_reposts")
         .insert({ post_id: postId, user_id: userId } as any);
       if (error) {
-        if (error.code === "23505") return true; // already reposted
+        if (error.code === "23505") return true;
         throw error;
       }
       await supabase.rpc("increment_reposts" as any, { p_post_id: postId });
@@ -240,7 +294,7 @@ export const feedAPI = {
     }
   },
 
-  // ─── QUOTE TWEET ───────────────────────────────────────
+  // ─── QUOTE TWEET (legacy via post_reposts) ─────────────
   async quoteRetweet(postId: string, userId: string, quoteText: string) {
     const { error } = await supabase
       .from("post_reposts")
@@ -322,5 +376,27 @@ export const feedAPI = {
         transaction_signature: signature,
       } as any);
     if (error) throw error;
+  },
+
+  // ─── GET USER REPOSTS (for profile tab) ────────────────
+  async getUserReposts(userId: string) {
+    const { data, error } = await supabase
+      .from("posts")
+      .select(`
+        *,
+        profiles!posts_user_id_fkey(${PROFILE_SELECT}),
+        parent_post:posts!posts_parent_post_id_fkey(
+          *,
+          profiles!posts_user_id_fkey(${PROFILE_SELECT})
+        )
+      `)
+      .eq("user_id", userId)
+      .in("post_type", ["repost", "quote"] as any)
+      .eq("is_published", true)
+      .order("created_at", { ascending: false })
+      .limit(50);
+
+    if (error) throw error;
+    return (data || []).map(mapPost);
   },
 };

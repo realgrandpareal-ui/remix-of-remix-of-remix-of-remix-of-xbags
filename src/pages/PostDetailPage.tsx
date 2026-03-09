@@ -22,18 +22,35 @@ export default function PostDetailPage() {
       try {
         const { data, error } = await supabase
           .from("posts")
-          .select("*, profiles!posts_user_id_fkey(id, username, display_name, avatar_url, wallet_address)")
+          .select(`
+            *,
+            profiles!posts_user_id_fkey(id, username, display_name, avatar_url, wallet_address),
+            parent_post:posts!posts_parent_post_id_fkey(
+              *,
+              profiles!posts_user_id_fkey(id, username, display_name, avatar_url, wallet_address)
+            )
+          `)
           .eq("id", postId)
           .eq("is_published", true)
           .single();
 
         if (error) throw error;
 
+        const parentRaw = (data as any).parent_post;
+        const parentPost = parentRaw && !Array.isArray(parentRaw)
+          ? { ...parentRaw, media_urls: parentRaw.media_urls || [], author: parentRaw.profiles || undefined, post_type: parentRaw.post_type || "tweet" as const, parent_post_id: parentRaw.parent_post_id || null }
+          : Array.isArray(parentRaw) && parentRaw.length > 0
+          ? { ...parentRaw[0], media_urls: parentRaw[0].media_urls || [], author: parentRaw[0].profiles || undefined, post_type: parentRaw[0].post_type || "tweet" as const, parent_post_id: parentRaw[0].parent_post_id || null }
+          : undefined;
+
         const p: Post = {
           ...data,
           media_urls: data.media_urls || [],
           reposts_count: data.reposts_count || 0,
+          post_type: (data as any).post_type || "tweet",
+          parent_post_id: (data as any).parent_post_id || null,
           author: (data as any).profiles || undefined,
+          parent_post: parentPost,
         };
 
         // Check like/repost status

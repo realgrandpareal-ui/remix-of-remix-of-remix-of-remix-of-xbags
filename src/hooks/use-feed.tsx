@@ -23,29 +23,10 @@ export function useFeed(tab: FeedTab) {
         const result = await feedAPI.getFeed(tab, pageNum, 20, profile?.id);
         if (!mountedRef.current) return;
 
-        let combinedPosts: Post[] = result.posts.map((p) => ({
+        const combinedPosts: Post[] = result.posts.map((p) => ({
           ...p,
           sort_time: p.sort_time || p.created_at,
         }));
-
-        // On "home" tab, merge reposts into feed
-        if (tab === "home" && pageNum === 1) {
-          try {
-            const reposts = await feedAPI.getRepostsForFeed(1, 20);
-            if (mountedRef.current && reposts.length > 0) {
-              // Deduplicate — don't show a repost if the original post is already in the feed
-              const existingIds = new Set(combinedPosts.map((p) => p.id));
-              const uniqueReposts: Post[] = reposts.filter((r) => !existingIds.has(r.id));
-              combinedPosts = [...combinedPosts, ...uniqueReposts]
-                .sort((a, b) =>
-                  new Date(b.sort_time || b.created_at).getTime() -
-                  new Date(a.sort_time || a.created_at).getTime()
-                );
-            }
-          } catch {
-            // Silently fail — reposts are supplementary
-          }
-        }
 
         if (append) {
           setPosts((prev) => [...prev, ...combinedPosts]);
@@ -74,19 +55,16 @@ export function useFeed(tab: FeedTab) {
     };
   }, [fetchFeed]);
 
-  // Realtime subscriptions for all post-related changes
+  // Realtime subscriptions
   useEffect(() => {
-    // Posts channel - for new posts, updates, deletes
     const postsChannel = supabase
       .channel("posts-realtime")
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "posts" }, (payload) => {
-        // Add new post to the top if it's published
         if (payload.new && (payload.new as any).is_published) {
           fetchFeed(1);
         }
       })
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "posts" }, (payload) => {
-        // Update post in list
         if (payload.new) {
           const updated = payload.new as any;
           setPosts((prev) =>
@@ -112,13 +90,11 @@ export function useFeed(tab: FeedTab) {
       })
       .subscribe();
 
-    // Likes channel - for real-time like updates
     const likesChannel = supabase
       .channel("likes-realtime")
       .on("postgres_changes", { event: "*", schema: "public", table: "post_likes" }, (payload) => {
         const postId = (payload.new as any)?.post_id || (payload.old as any)?.post_id;
         if (postId) {
-          // Refetch post count from DB or update locally
           setPosts((prev) =>
             prev.map((p) => {
               if (p.id === postId) {
@@ -132,7 +108,6 @@ export function useFeed(tab: FeedTab) {
       })
       .subscribe();
 
-    // Reposts channel
     const repostsChannel = supabase
       .channel("reposts-realtime")
       .on("postgres_changes", { event: "*", schema: "public", table: "post_reposts" }, (payload) => {
@@ -151,7 +126,6 @@ export function useFeed(tab: FeedTab) {
       })
       .subscribe();
 
-    // Comments channel
     const commentsChannel = supabase
       .channel("comments-realtime")
       .on("postgres_changes", { event: "*", schema: "public", table: "post_comments" }, (payload) => {
