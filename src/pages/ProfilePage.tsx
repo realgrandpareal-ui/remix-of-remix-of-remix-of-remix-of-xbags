@@ -3,12 +3,16 @@ import { MapPin, Link as LinkIcon, Calendar, Edit } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useParams } from "react-router-dom";
 import { useProfile } from "@/hooks/use-profile";
 import { useWallet } from "@/hooks/use-wallet";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Profile } from "@/hooks/use-profile";
+import type { Post } from "@/lib/api/feed";
+import PostCard from "@/components/feed/PostCard";
+import { PostSkeleton } from "@/components/feed/PostSkeleton";
 
 const ProfilePage = () => {
   const { username } = useParams();
@@ -16,6 +20,9 @@ const ProfilePage = () => {
   const { address } = useWallet();
   const [viewProfile, setViewProfile] = useState<Profile | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [posts, setPosts] = useState<Post[]>([]);
+  const [postsLoading, setPostsLoading] = useState(false);
+  const [postsCount, setPostsCount] = useState(0);
 
   const isOwnProfile = !username || username === "me" || username === myProfile?.username;
 
@@ -35,6 +42,46 @@ const ProfilePage = () => {
         });
     }
   }, [username, myProfile, isOwnProfile]);
+
+  // Load user posts
+  useEffect(() => {
+    if (!viewProfile?.id) return;
+    setPostsLoading(true);
+    
+    Promise.all([
+      supabase
+        .from("posts")
+        .select("*, profiles!posts_user_id_fkey(id, username, display_name, avatar_url, wallet_address)")
+        .eq("user_id", viewProfile.id)
+        .eq("is_published", true)
+        .order("created_at", { ascending: false })
+        .limit(50),
+      supabase
+        .from("posts")
+        .select("id", { count: "exact" })
+        .eq("user_id", viewProfile.id)
+        .eq("is_published", true),
+    ]).then(([postsRes, countRes]) => {
+      const formattedPosts: Post[] = (postsRes.data || []).map((p: any) => ({
+        ...p,
+        media_urls: p.media_urls || [],
+        reposts_count: p.reposts_count || 0,
+        author: p.profiles || undefined,
+      }));
+      setPosts(formattedPosts);
+      setPostsCount(countRes.count || 0);
+      setPostsLoading(false);
+    });
+  }, [viewProfile?.id]);
+
+  const handlePostUpdate = useCallback((postId: string, updates: Partial<Post>) => {
+    setPosts(prev => prev.map(p => p.id === postId ? { ...p, ...updates } : p));
+  }, []);
+
+  const handlePostDelete = useCallback((postId: string) => {
+    setPosts(prev => prev.filter(p => p.id !== postId));
+    setPostsCount(c => c - 1);
+  }, []);
 
   const profile = viewProfile;
 
@@ -75,7 +122,7 @@ const ProfilePage = () => {
           )}
         </div>
         <div className="flex gap-6 mt-6">
-          {[{ value: "0", label: "Posts" }, { value: "0", label: "Followers" }, { value: "0", label: "Following" }].map((s) => (
+          {[{ value: String(postsCount), label: "Posts" }, { value: "0", label: "Followers" }, { value: "0", label: "Following" }].map((s) => (
             <div key={s.label}><span className="font-bold text-foreground">{s.value}</span> <span className="text-sm text-muted-foreground">{s.label}</span></div>
           ))}
         </div>
@@ -83,17 +130,48 @@ const ProfilePage = () => {
           <Badge className="bg-primary/10 text-primary border-primary/20">OG Creator</Badge>
         </div>
       </div>
-      <div className="mt-8 space-y-4">
-        {isLoading ? (
-          [1, 2, 3].map((_, i) => (
-            <motion.div key={i} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.1 }} className="p-5 rounded-xl bg-card border border-border shadow-card">
-              <div className="h-4 w-3/4 bg-muted rounded mb-3" />
-              <div className="h-3 w-1/2 bg-muted rounded" />
-            </motion.div>
-          ))
-        ) : (
-          <div className="text-center py-12 text-muted-foreground text-sm">No posts yet</div>
-        )}
+
+      {/* Posts Section with Tabs */}
+      <div className="mt-8">
+        <Tabs defaultValue="posts" className="w-full">
+          <TabsList className="grid w-full grid-cols-3 bg-card border border-border">
+            <TabsTrigger value="posts" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground text-muted-foreground">
+              Posts
+            </TabsTrigger>
+            <TabsTrigger value="replies" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground text-muted-foreground">
+              Replies
+            </TabsTrigger>
+            <TabsTrigger value="likes" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground text-muted-foreground">
+              Likes
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="posts" className="mt-4 space-y-0">
+            {isLoading || postsLoading ? (
+              [1, 2, 3].map((_, i) => <PostSkeleton key={i} />)
+            ) : posts.length > 0 ? (
+              posts.map((post, i) => (
+                <PostCard
+                  key={post.id}
+                  post={post}
+                  onUpdate={handlePostUpdate}
+                  onDelete={handlePostDelete}
+                  index={i}
+                />
+              ))
+            ) : (
+              <div className="text-center py-12 text-muted-foreground text-sm">No posts yet</div>
+            )}
+          </TabsContent>
+
+          <TabsContent value="replies" className="mt-4">
+            <div className="text-center py-12 text-muted-foreground text-sm">Replies coming soon</div>
+          </TabsContent>
+
+          <TabsContent value="likes" className="mt-4">
+            <div className="text-center py-12 text-muted-foreground text-sm">Liked posts coming soon</div>
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
   );
