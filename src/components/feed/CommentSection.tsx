@@ -28,6 +28,7 @@ export default function CommentSection({ postId, onCommentAdded }: Props) {
   const [loading, setLoading] = useState(true);
   const [text, setText] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     feedAPI.getComments(postId).then((c) => {
