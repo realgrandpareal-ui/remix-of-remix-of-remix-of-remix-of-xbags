@@ -172,7 +172,10 @@ export const feedAPI = {
         user_id: userId,
         quote_content: quoteContent || null
       } as any);
-    if (error && !error.message.includes("duplicate")) throw error;
+    if (error) {
+      if (error.code === "23505") return; // Already reposted, silently ignore
+      throw error;
+    }
   },
 
   async unrepost(postId: string, userId: string) {
