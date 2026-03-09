@@ -168,7 +168,7 @@ export default function PostCard({ post, onUpdate, onDelete, index }: PostCardPr
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: index * 0.03, duration: 0.3 }}
-        className="px-4 py-4 hover:bg-muted/30 transition-colors border-b border-border"
+        className="px-4 py-4 hover:bg-muted/30 transition-colors border-b border-border cursor-pointer"
       >
         <div className="flex gap-3">
           {/* Avatar */}
