@@ -1,10 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Send, Loader2 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { feedAPI, Comment } from "@/lib/api/feed";
 import { useProfile } from "@/hooks/use-profile";
 import { toast } from "sonner";
+import EmojiPicker from "./EmojiPicker";
 
 function timeAgo(dateStr: string) {
   const diff = Date.now() - new Date(dateStr).getTime();
