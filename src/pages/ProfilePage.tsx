@@ -47,7 +47,7 @@ const ProfilePage = () => {
     }
   }, [username, myProfile, isOwnProfile]);
 
-  // Load user's original posts (tweet type only)
+  // Load all user posts (tweets + reposts + quotes, like Twitter)
   useEffect(() => {
     if (!viewProfile?.id) return;
     setPostsLoading(true);
@@ -58,8 +58,7 @@ const ProfilePage = () => {
         .from("posts")
         .select("id", { count: "exact" })
         .eq("user_id", viewProfile.id)
-        .eq("is_published", true)
-        .eq("post_type", "tweet" as any),
+        .eq("is_published", true),
     ]).then(([userPosts, countRes]) => {
       setPosts(userPosts);
       setPostsCount(countRes.count || 0);
