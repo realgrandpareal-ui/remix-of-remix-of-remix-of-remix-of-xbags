@@ -62,15 +62,20 @@ export default function PostCard({ post, onUpdate, onDelete, index }: PostCardPr
   const [hasViewed, setHasViewed] = useState(false);
 
   // For reposts, the displayed post is the parent
-  const isRepost = post.post_type === "repost" && post.parent_post;
-  const isQuote = post.post_type === "quote" && post.parent_post;
+  const isRepost = post.post_type === "repost" && !!post.parent_post;
+  const isQuote = post.post_type === "quote" && !!post.parent_post;
+  // If repost but parent is missing (deleted), skip rendering
+  const isOrphanRepost = post.post_type === "repost" && !post.parent_post;
   const displayPost = isRepost ? post.parent_post! : post;
 
   const isOwn = profile?.id === post.user_id;
   const displayName = displayPost.author?.display_name || displayPost.author?.username || "Anonymous";
   const username = displayPost.author?.username ? `@${displayPost.author.username}` : "";
-  const contentLong = displayPost.content.length > 200;
+  const contentLong = !isRepost && displayPost.content.length > 200;
   const repostAuthorName = post.author?.display_name || post.author?.username || "Someone";
+
+  // Don't render orphaned reposts (parent deleted)
+  if (isOrphanRepost) return null;
 
   // Track views on the actual displayed post
   useEffect(() => {
