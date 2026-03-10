@@ -53,40 +53,18 @@ const ProfilePage = () => {
     setPostsLoading(true);
     
     Promise.all([
-      supabase
-        .from("posts")
-        .select(`
-          *,
-          profiles!posts_user_id_fkey(id, username, display_name, avatar_url, wallet_address),
-          parent_post:posts!posts_parent_post_id_fkey(
-            *,
-            profiles!posts_user_id_fkey(id, username, display_name, avatar_url, wallet_address)
-          )
-        `)
-        .eq("user_id", viewProfile.id)
-        .eq("is_published", true)
-        .eq("post_type", "tweet" as any)
-        .order("created_at", { ascending: false })
-        .limit(50),
+      feedAPI.getUserPosts(viewProfile.id),
       supabase
         .from("posts")
         .select("id", { count: "exact" })
         .eq("user_id", viewProfile.id)
         .eq("is_published", true)
         .eq("post_type", "tweet" as any),
-    ]).then(([postsRes, countRes]) => {
-      const formattedPosts: Post[] = (postsRes.data || []).map((p: any) => ({
-        ...p,
-        media_urls: p.media_urls || [],
-        reposts_count: p.reposts_count || 0,
-        post_type: p.post_type || "tweet",
-        parent_post_id: p.parent_post_id || null,
-        author: p.profiles || undefined,
-      }));
-      setPosts(formattedPosts);
+    ]).then(([userPosts, countRes]) => {
+      setPosts(userPosts);
       setPostsCount(countRes.count || 0);
       setPostsLoading(false);
-    });
+    }).catch(() => setPostsLoading(false));
   }, [viewProfile?.id]);
 
   // Load reposts when tab is active
