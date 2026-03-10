@@ -89,8 +89,7 @@ export default function PostCard({ post, onUpdate, onDelete, index }: PostCardPr
   // Don't render orphaned reposts (parent deleted)
   if (isOrphanRepost) return null;
 
-  // For actions, target the original post (parent for reposts, or post itself)
-  const targetPostId = isRepost ? post.parent_post!.id : post.id;
+
 
   const handleLike = async () => {
     if (!profile) return toast.error("Connect wallet first");
