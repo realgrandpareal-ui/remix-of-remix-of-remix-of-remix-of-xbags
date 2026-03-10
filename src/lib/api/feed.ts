@@ -408,18 +408,19 @@ export const feedAPI = {
     return post;
   },
 
-  // ─── GET USER POSTS ───────────────────────────────────
+  // ─── GET USER POSTS (all types like Twitter) ───────────
   async getUserPosts(userId: string) {
     const { data, error } = await supabase
       .from("posts")
       .select(POST_WITH_AUTHOR)
       .eq("user_id", userId)
       .eq("is_published", true)
-      .eq("post_type", "tweet" as any)
       .order("created_at", { ascending: false })
       .limit(50);
 
     if (error) throw error;
-    return (data || []).map(mapPost);
+    let posts = (data || []).map(mapPost);
+    posts = await attachParentPosts(posts);
+    return posts;
   },
 };
