@@ -28,7 +28,6 @@ export interface Post {
   is_liked?: boolean;
   is_reposted?: boolean;
   is_unlocked?: boolean;
-  /** Used for feed sorting */
   sort_time?: string;
 }
 
@@ -46,40 +45,41 @@ export interface Comment {
 }
 
 const PROFILE_SELECT = "id, username, display_name, avatar_url, wallet_address";
+const POST_WITH_AUTHOR = `*, profiles!posts_user_id_fkey(${PROFILE_SELECT})`;
 
 function mapPost(p: any): Post {
-  const post: Post = {
+  return {
     ...p,
     media_urls: p.media_urls || [],
     reposts_count: p.reposts_count || 0,
     post_type: p.post_type || "tweet",
     parent_post_id: p.parent_post_id || null,
     author: p.profiles || undefined,
+    parent_post: undefined,
   };
+}
 
-  // Map parent post if joined
-  if (p.parent_post && !Array.isArray(p.parent_post)) {
-    post.parent_post = {
-      ...p.parent_post,
-      media_urls: p.parent_post.media_urls || [],
-      reposts_count: p.parent_post.reposts_count || 0,
-      post_type: p.parent_post.post_type || "tweet",
-      parent_post_id: p.parent_post.parent_post_id || null,
-      author: p.parent_post.profiles || undefined,
-    };
-  } else if (Array.isArray(p.parent_post) && p.parent_post.length > 0) {
-    const pp = p.parent_post[0];
-    post.parent_post = {
-      ...pp,
-      media_urls: pp.media_urls || [],
-      reposts_count: pp.reposts_count || 0,
-      post_type: pp.post_type || "tweet",
-      parent_post_id: pp.parent_post_id || null,
-      author: pp.profiles || undefined,
-    };
-  }
+/** Fetch parent posts for any posts that have parent_post_id, and attach them */
+async function attachParentPosts(posts: Post[]): Promise<Post[]> {
+  const parentIds = [...new Set(posts.filter(p => p.parent_post_id).map(p => p.parent_post_id!))];
+  if (parentIds.length === 0) return posts;
 
-  return post;
+  const { data: parentData } = await supabase
+    .from("posts")
+    .select(POST_WITH_AUTHOR)
+    .in("id", parentIds);
+
+  const parentMap = new Map<string, Post>();
+  (parentData || []).forEach((p: any) => {
+    parentMap.set(p.id, mapPost(p));
+  });
+
+  return posts.map(post => {
+    if (post.parent_post_id && parentMap.has(post.parent_post_id)) {
+      return { ...post, parent_post: parentMap.get(post.parent_post_id) };
+    }
+    return post;
+  });
 }
 
 export const feedAPI = {
@@ -92,14 +92,7 @@ export const feedAPI = {
   ) {
     let query = supabase
       .from("posts")
-      .select(`
-        *,
-        profiles!posts_user_id_fkey(${PROFILE_SELECT}),
-        parent_post:posts!posts_parent_post_id_fkey(
-          *,
-          profiles!posts_user_id_fkey(${PROFILE_SELECT})
-        )
-      `)
+      .select(POST_WITH_AUTHOR)
       .eq("is_published", true)
       .range((page - 1) * limit, page * limit - 1);
 
@@ -114,7 +107,8 @@ export const feedAPI = {
     const { data, error } = await query;
     if (error) throw error;
 
-    const posts: Post[] = (data || []).map(mapPost);
+    let posts: Post[] = (data || []).map(mapPost);
+    posts = await attachParentPosts(posts);
 
     if (currentUserProfileId && posts.length > 0) {
       const postIds = posts.map((p) => p.id);
@@ -140,7 +134,6 @@ export const feedAPI = {
         p.is_reposted = repostedSet.has(p.id);
       });
 
-      // Check unlocks for locked posts
       const lockedIds = postIds.filter((id) => posts.find((p) => p.id === id)?.is_locked);
       if (lockedIds.length > 0) {
         const { data: unlocks } = await supabase
@@ -179,16 +172,15 @@ export const feedAPI = {
         post_type: "tweet",
         ...(scheduledAt ? { scheduled_at: scheduledAt, is_published: false } : {}),
       } as any)
-      .select(`*, profiles!posts_user_id_fkey(${PROFILE_SELECT})`)
+      .select(POST_WITH_AUTHOR)
       .single();
 
     if (error) throw error;
     return mapPost(data);
   },
 
-  // ─── REPOST (creates a new post with post_type=repost) ─
+  // ─── REPOST ─────────────────────────────────────────────
   async createRepost(originalPostId: string, userId: string) {
-    // Check if already reposted
     const { data: existing } = await supabase
       .from("posts")
       .select("id")
@@ -198,13 +190,11 @@ export const feedAPI = {
       .maybeSingle();
 
     if (existing) {
-      // Undo repost — delete the repost post
       await supabase.from("posts").delete().eq("id", existing.id);
       await supabase.rpc("decrement_reposts" as any, { p_post_id: originalPostId });
       return { reposted: false };
     }
 
-    // Create repost
     const { error } = await supabase
       .from("posts")
       .insert({
@@ -220,7 +210,7 @@ export const feedAPI = {
     return { reposted: true };
   },
 
-  // ─── QUOTE TWEET (creates a new post with post_type=quote) ─
+  // ─── QUOTE TWEET ────────────────────────────────────────
   async createQuote(originalPostId: string, userId: string, quoteContent: string) {
     const { data, error } = await supabase
       .from("posts")
@@ -231,22 +221,18 @@ export const feedAPI = {
         post_type: "quote",
         is_published: true,
       } as any)
-      .select(`
-        *,
-        profiles!posts_user_id_fkey(${PROFILE_SELECT}),
-        parent_post:posts!posts_parent_post_id_fkey(
-          *,
-          profiles!posts_user_id_fkey(${PROFILE_SELECT})
-        )
-      `)
+      .select(POST_WITH_AUTHOR)
       .single();
 
     if (error) throw error;
     await supabase.rpc("increment_reposts" as any, { p_post_id: originalPostId });
-    return mapPost(data);
+
+    let post = mapPost(data);
+    const posts = await attachParentPosts([post]);
+    return posts[0];
   },
 
-  // ─── LIKE / UNLIKE (toggle, 1 per user) ────────────────
+  // ─── LIKE / UNLIKE ─────────────────────────────────────
   async toggleLike(postId: string, userId: string, currentlyLiked: boolean) {
     if (currentlyLiked) {
       const { error } = await supabase
@@ -270,7 +256,7 @@ export const feedAPI = {
     }
   },
 
-  // ─── LEGACY REPOST TOGGLE (for post_reposts table) ─────
+  // ─── LEGACY REPOST TOGGLE ──────────────────────────────
   async toggleRepost(postId: string, userId: string, currentlyReposted: boolean) {
     if (currentlyReposted) {
       const { error } = await supabase
@@ -294,7 +280,7 @@ export const feedAPI = {
     }
   },
 
-  // ─── QUOTE TWEET (legacy via post_reposts) ─────────────
+  // ─── QUOTE TWEET (legacy) ──────────────────────────────
   async quoteRetweet(postId: string, userId: string, quoteText: string) {
     const { error } = await supabase
       .from("post_reposts")
@@ -378,21 +364,58 @@ export const feedAPI = {
     if (error) throw error;
   },
 
-  // ─── GET USER REPOSTS (for profile tab) ────────────────
+  // ─── GET USER REPOSTS ─────────────────────────────────
   async getUserReposts(userId: string) {
     const { data, error } = await supabase
       .from("posts")
-      .select(`
-        *,
-        profiles!posts_user_id_fkey(${PROFILE_SELECT}),
-        parent_post:posts!posts_parent_post_id_fkey(
-          *,
-          profiles!posts_user_id_fkey(${PROFILE_SELECT})
-        )
-      `)
+      .select(POST_WITH_AUTHOR)
       .eq("user_id", userId)
       .in("post_type", ["repost", "quote"] as any)
       .eq("is_published", true)
+      .order("created_at", { ascending: false })
+      .limit(50);
+
+    if (error) throw error;
+    let posts = (data || []).map(mapPost);
+    posts = await attachParentPosts(posts);
+    return posts;
+  },
+
+  // ─── GET SINGLE POST ──────────────────────────────────
+  async getPost(postId: string, currentUserProfileId?: string): Promise<Post | null> {
+    const { data, error } = await supabase
+      .from("posts")
+      .select(POST_WITH_AUTHOR)
+      .eq("id", postId)
+      .eq("is_published", true)
+      .single();
+
+    if (error) return null;
+
+    let post = mapPost(data);
+    const posts = await attachParentPosts([post]);
+    post = posts[0];
+
+    if (currentUserProfileId) {
+      const [likesRes, repostsRes] = await Promise.all([
+        supabase.from("post_likes").select("id").eq("post_id", postId).eq("user_id", currentUserProfileId).maybeSingle(),
+        supabase.from("post_reposts").select("id").eq("post_id", postId).eq("user_id", currentUserProfileId).maybeSingle(),
+      ]);
+      post.is_liked = !!likesRes.data;
+      post.is_reposted = !!repostsRes.data;
+    }
+
+    return post;
+  },
+
+  // ─── GET USER POSTS ───────────────────────────────────
+  async getUserPosts(userId: string) {
+    const { data, error } = await supabase
+      .from("posts")
+      .select(POST_WITH_AUTHOR)
+      .eq("user_id", userId)
+      .eq("is_published", true)
+      .eq("post_type", "tweet" as any)
       .order("created_at", { ascending: false })
       .limit(50);
 
