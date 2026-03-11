@@ -233,7 +233,7 @@ const QuickBuyModal = ({ token, onClose }: QuickBuyModalProps) => {
               </Button>
             ) : (
               <Button
-                className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+                className="flex-1 bg-primary hover:bg-primary/90"
                 onClick={handleSwap}
                 disabled={loading || !walletAddress}
               >
