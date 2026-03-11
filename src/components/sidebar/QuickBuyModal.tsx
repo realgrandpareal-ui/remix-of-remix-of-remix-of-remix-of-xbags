@@ -1,14 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Loader2, ArrowRightLeft, AlertCircle } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
 import { useWallet } from "@/hooks/use-wallet";
 import { useToast } from "@/hooks/use-toast";
-
-// SOL mint address
-const SOL_MINT = "So11111111111111111111111111111111111111112";
+import { useSwap } from "@/hooks/use-swap";
 
 interface Token {
   tokenAddress: string;
@@ -31,80 +28,76 @@ const PRESET_AMOUNTS = [0.1, 0.5, 1, 2];
 
 const QuickBuyModal = ({ token, onClose }: QuickBuyModalProps) => {
   const [solAmount, setSolAmount] = useState("0.1");
-  const [loading, setLoading] = useState(false);
-  const [quoteData, setQuoteData] = useState<any>(null);
-  const [error, setError] = useState<string | null>(null);
   const { address: walletAddress } = useWallet();
   const { toast } = useToast();
 
-  const handleGetQuote = async () => {
+  const {
+    quote: quoteData,
+    isLoadingQuote,
+    isLoadingTx,
+    txSignature,
+    error,
+    fetchQuoteDebounced,
+    executeSwap,
+    reset,
+    clearQuote,
+  } = useSwap();
+
+  // Auto-fetch quote when amount or token changes (debounced)
+  useEffect(() => {
     if (!token) return;
-    setLoading(true);
-    setError(null);
-    setQuoteData(null);
-
-    try {
-      const amountLamports = Math.floor(parseFloat(solAmount) * 1_000_000_000);
-
-      const { data, error: fnError } = await supabase.functions.invoke('bags-trade', {
-        body: {
-          action: 'quote',
-          inputMint: SOL_MINT,
-          outputMint: token.tokenAddress,
-          amount: amountLamports,
-          slippageMode: 'auto',
-        },
-      });
-
-      if (fnError) throw new Error(fnError.message);
-      if (!data?.success) throw new Error(data?.error || 'Failed to get quote');
-
-      setQuoteData(data.response);
-    } catch (err: any) {
-      setError(err.message || 'Failed to get quote');
-    } finally {
-      setLoading(false);
+    const amt = parseFloat(solAmount);
+    if (isNaN(amt) || amt <= 0) {
+      clearQuote();
+      return;
     }
-  };
+    fetchQuoteDebounced(token.tokenAddress, amt);
+  }, [solAmount, token?.tokenAddress, fetchQuoteDebounced, clearQuote]);
 
-  const handleSwap = async () => {
-    if (!quoteData || !walletAddress || !token) return;
-    setLoading(true);
-    setError(null);
+  // Reset state when modal opens with new token
+  useEffect(() => {
+    if (token) {
+      setSolAmount("0.1");
+      reset();
+    }
+  }, [token?.tokenAddress]);
 
-    try {
-      const { data, error: fnError } = await supabase.functions.invoke('bags-trade', {
-        body: {
-          action: 'swap',
-          quoteResponse: quoteData,
-          userPublicKey: walletAddress,
-        },
-      });
-
-      if (fnError) throw new Error(fnError.message);
-      if (!data?.success) throw new Error(data?.error || 'Failed to create swap');
-
-      // The swap transaction needs to be signed by the user's wallet
-      // For now we show success - full signing integration requires wallet adapter
+  // Handle successful swap
+  useEffect(() => {
+    if (txSignature && token) {
       toast({
-        title: "Swap transaction created!",
-        description: `Swap ${solAmount} SOL → ${token.symbol || token.name}. Please sign the transaction in your wallet.`,
+        title: "Swap successful! 🎉",
+        description: `Swapped SOL → ${token.symbol || token.name}`,
       });
-
       onClose();
-    } catch (err: any) {
-      setError(err.message || 'Failed to execute swap');
-    } finally {
-      setLoading(false);
     }
+  }, [txSignature]);
+
+  const handleSwap = useCallback(async () => {
+    if (!token || !walletAddress) return;
+    const amt = parseFloat(solAmount);
+    if (isNaN(amt) || amt <= 0) return;
+
+    const sig = await executeSwap(token.tokenAddress, amt);
+    if (!sig) {
+      // Error is already set in the hook state
+    }
+  }, [token, walletAddress, solAmount, executeSwap]);
+
+  const getOutputDecimals = (): number => {
+    if (!quoteData?.routePlan?.length) return 9;
+    return quoteData.routePlan[quoteData.routePlan.length - 1]?.outputMintDecimals ?? 9;
   };
 
-  const formatOutAmount = (amount: string, decimals?: number) => {
-    const num = parseInt(amount) / Math.pow(10, decimals || 9);
+  const formatOutAmount = (amount: string) => {
+    const decimals = getOutputDecimals();
+    const num = parseInt(amount) / Math.pow(10, decimals);
     if (num > 1_000_000) return `${(num / 1_000_000).toFixed(2)}M`;
     if (num > 1_000) return `${(num / 1_000).toFixed(2)}K`;
     return num.toFixed(4);
   };
+
+  const loading = isLoadingQuote || isLoadingTx;
 
   return (
     <Dialog open={!!token} onOpenChange={(open) => !open && onClose()}>
@@ -149,7 +142,6 @@ const QuickBuyModal = ({ token, onClose }: QuickBuyModalProps) => {
               value={solAmount}
               onChange={(e) => {
                 setSolAmount(e.target.value);
-                setQuoteData(null);
               }}
               placeholder="0.0"
               className="bg-background border-border"
@@ -165,7 +157,6 @@ const QuickBuyModal = ({ token, onClose }: QuickBuyModalProps) => {
                   className="flex-1 h-7 text-xs"
                   onClick={() => {
                     setSolAmount(String(amt));
-                    setQuoteData(null);
                   }}
                 >
                   {amt} SOL
@@ -219,16 +210,15 @@ const QuickBuyModal = ({ token, onClose }: QuickBuyModalProps) => {
             {!quoteData ? (
               <Button
                 className="flex-1"
-                onClick={handleGetQuote}
                 disabled={loading || !solAmount || parseFloat(solAmount) <= 0}
               >
-                {loading ? (
+                {isLoadingQuote ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin mr-1" />
                     Getting Quote...
                   </>
                 ) : (
-                  "Get Quote"
+                  "Enter amount for quote"
                 )}
               </Button>
             ) : (
@@ -237,7 +227,7 @@ const QuickBuyModal = ({ token, onClose }: QuickBuyModalProps) => {
                 onClick={handleSwap}
                 disabled={loading || !walletAddress}
               >
-                {loading ? (
+                {isLoadingTx ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin mr-1" />
                     Swapping...
@@ -248,6 +238,20 @@ const QuickBuyModal = ({ token, onClose }: QuickBuyModalProps) => {
               </Button>
             )}
           </div>
+
+          {/* Tx Success Link */}
+          {txSignature && (
+            <div className="text-center">
+              <a
+                href={`https://solscan.io/tx/${txSignature}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-primary hover:underline"
+              >
+                View on Solscan →
+              </a>
+            </div>
+          )}
 
           {/* Powered by */}
           <p className="text-[10px] text-center text-muted-foreground">
