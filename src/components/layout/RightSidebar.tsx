@@ -7,7 +7,7 @@ import QuickBuyModal from "@/components/sidebar/QuickBuyModal";
 import TokenList from "@/components/sidebar/TokenList";
 import { useTrendingTokens } from "@/hooks/useTrendingTokens";
 import { useNewTokens } from "@/hooks/useNewTokens";
-import type { BagsToken } from "@/types/token";
+import type { TokenCard } from "@/hooks/useNewTokens";
 
 interface Token {
   tokenAddress: string;
@@ -22,18 +22,20 @@ interface Token {
   createdAt?: number | null;
 }
 
-function toToken(bt: BagsToken): Token {
+function toToken(tc: TokenCard): Token {
+  const mcNum = parseFloat(tc.marketCap.replace(/[$,KM]/g, '')) * 
+    (tc.marketCap.includes('M') ? 1_000_000 : tc.marketCap.includes('K') ? 1_000 : 1);
   return {
-    tokenAddress: bt.mint,
-    icon: bt.image || null,
-    name: bt.name,
-    symbol: bt.symbol,
-    priceUsd: bt.priceUsd ? bt.priceUsd.toString() : null,
-    priceChange24h: bt.priceChange24h,
-    volume24h: bt.volume24h,
-    marketCap: bt.marketCap,
-    url: `https://dexscreener.com/solana/${bt.pairAddress || bt.mint}`,
-    createdAt: bt.pairCreatedAt || null,
+    tokenAddress: tc.mint,
+    icon: tc.image || null,
+    name: tc.name,
+    symbol: tc.symbol,
+    priceUsd: tc.priceUsd.replace('$', ''),
+    priceChange24h: tc.priceChangePct,
+    volume24h: null,
+    marketCap: isNaN(mcNum) ? null : mcNum,
+    url: `https://dexscreener.com/solana/${tc.mint}`,
+    createdAt: tc.ageMs ? Date.now() - tc.ageMs : null,
   };
 }
 
