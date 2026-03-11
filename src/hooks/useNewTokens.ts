@@ -64,7 +64,7 @@ function toPairCard(p: any): TokenCard {
 
 export function useNewTokens(max = 20) {
   const [tokens, setTokens]     = useState<TokenCard[]>([]);
-  const [isLoading, setLoading] = useState(true);
+  const [isLoading, setLoading] = useState(false);
 
   async function fetchNew() {
     setLoading(true);
@@ -96,17 +96,17 @@ export function useNewTokens(max = 20) {
     fetchNew();
     const id = setInterval(fetchNew, 15_000);
     return () => clearInterval(id);
-  }, []);
+  }, [max]);
 
   useEffect(() => {
     const id = setInterval(() => {
       setTokens(prev => prev.map(t => {
-        const newAge = Date.now() - (Date.now() - t.ageMs);
+        const nextAgeMs = t.ageMs + 60_000;
         return {
           ...t,
-          ageMs:  newAge,
-          ageStr: fmtAge(newAge),
-          isNew:  newAge < 60 * 60 * 1000,
+          ageMs: nextAgeMs,
+          ageStr: fmtAge(nextAgeMs),
+          isNew: nextAgeMs < 60 * 60 * 1000,
         };
       }));
     }, 60_000);
