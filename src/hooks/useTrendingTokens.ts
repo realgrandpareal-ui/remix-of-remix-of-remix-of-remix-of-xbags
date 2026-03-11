@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
-import { type TokenCard, fmtPrice, fmtMC, fmtAge, isBags } from './useNewTokens';
+import { BagsToken, parsePair, isBagsToken } from '../types/token';
 
 export function useTrendingTokens() {
-  const [tokens, setTokens]     = useState<TokenCard[]>([]);
+  const [tokens, setTokens]     = useState<BagsToken[]>([]);
   const [isLoading, setLoading] = useState(true);
+  const [lastUpdated, setLast]  = useState<Date | null>(null);
 
   async function fetchTrending() {
     setLoading(true);
@@ -13,32 +14,17 @@ export function useTrendingTokens() {
       );
       const data = await res.json();
 
-      const trending: TokenCard[] = (data.pairs ?? [])
-        .filter(isBags)
-        .filter((p: any) => (p.priceChange?.h24 ?? 0) > 0)
-        .map((p: any) => {
-          const pct = p.priceChange?.h24 ?? 0;
-          const age = Date.now() - (p.pairCreatedAt ?? 0);
-          return {
-            mint:           p.baseToken?.address  ?? '',
-            name:           p.baseToken?.name     ?? 'Unknown',
-            symbol:         p.baseToken?.symbol   ?? '???',
-            image:          p.info?.imageUrl      ?? '',
-            priceUsd:       fmtPrice(parseFloat(p.priceUsd ?? '0')),
-            priceChangePct: pct,
-            priceChangeStr: `↑ ${pct.toFixed(2)}%`,
-            marketCap:      fmtMC(p.marketCap ?? p.fdv ?? 0),
-            ageMs:          age,
-            ageStr:         fmtAge(age),
-            isNew:          false,
-          } as TokenCard;
-        })
-        .sort((a: TokenCard, b: TokenCard) => b.priceChangePct - a.priceChangePct)
+      const trending = (data.pairs ?? [])
+        .filter(isBagsToken)
+        .map(parsePair)
+        .filter((t: BagsToken) => t.volume6h > 0)
+        .sort((a: BagsToken, b: BagsToken) => b.volume6h - a.volume6h)
         .slice(0, 10);
 
       setTokens(trending);
+      setLast(new Date());
     } catch (e) {
-      console.error('[useTrendingTokens]', e);
+      console.error('Trending error:', e);
     } finally {
       setLoading(false);
     }
@@ -50,5 +36,5 @@ export function useTrendingTokens() {
     return () => clearInterval(id);
   }, []);
 
-  return { tokens, isLoading };
+  return { tokens, isLoading, lastUpdated };
 }
