@@ -57,8 +57,8 @@ serve(async (req) => {
       });
     }
 
-    if (action === 'swap') {
-      const data = await safeFetch(`${BAGS_API_BASE}/trade/swap`, {
+    if (action === 'transaction') {
+      const data = await safeFetch(`${BAGS_API_BASE}/trade/transaction`, {
         method: 'POST',
         headers: {
           'x-api-key': BAGS_API_KEY,
@@ -75,7 +75,26 @@ serve(async (req) => {
       });
     }
 
-    return new Response(JSON.stringify({ success: false, error: 'Invalid action. Use "quote" or "swap"' }), {
+    // Keep legacy swap action for backwards compatibility
+    if (action === 'swap') {
+      const data = await safeFetch(`${BAGS_API_BASE}/trade/transaction`, {
+        method: 'POST',
+        headers: {
+          'x-api-key': BAGS_API_KEY,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          quoteResponse: params.quoteResponse,
+          userPublicKey: params.userPublicKey,
+        }),
+      });
+
+      return new Response(JSON.stringify(data), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    return new Response(JSON.stringify({ success: false, error: 'Invalid action. Use "quote" or "transaction"' }), {
       status: 400,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
