@@ -93,8 +93,18 @@ export const feedAPI = {
     let query = supabase
       .from("posts")
       .select(POST_WITH_AUTHOR)
-      .eq("is_published", true)
-      .range((page - 1) * limit, page * limit - 1);
+      .eq("is_published", true);
+
+    // For "following" tab, fetch only posts from followed users
+    if (tab === "following" && currentUserProfileId) {
+      const followingIds = await this.getFollowingIds(currentUserProfileId);
+      if (followingIds.length === 0) {
+        return { posts: [], hasMore: false };
+      }
+      query = query.in("user_id", followingIds);
+    }
+
+    query = query.range((page - 1) * limit, page * limit - 1);
 
     switch (tab) {
       case "popular":
@@ -489,8 +499,65 @@ export const feedAPI = {
 
     if (error) throw error;
     let posts = (data || []).map(mapPost);
-    // Also filter to only those with actual media URLs
     posts = posts.filter(p => p.media_urls && p.media_urls.length > 0 && p.media_urls[0] !== "");
     return posts;
+  },
+
+  // ─── FOLLOW / UNFOLLOW ────────────────────────────────
+  async followUser(followerId: string, followingId: string) {
+    const { error } = await supabase
+      .from("follows" as any)
+      .insert({ follower_id: followerId, following_id: followingId } as any);
+    if (error) {
+      if (error.code === "23505") return; // already following
+      throw error;
+    }
+    await Promise.all([
+      supabase.rpc("increment_followers" as any, { p_user_id: followingId }),
+      supabase.rpc("increment_following" as any, { p_user_id: followerId }),
+    ]);
+  },
+
+  async unfollowUser(followerId: string, followingId: string) {
+    const { error } = await supabase
+      .from("follows" as any)
+      .delete()
+      .eq("follower_id", followerId)
+      .eq("following_id", followingId);
+    if (error) throw error;
+    await Promise.all([
+      supabase.rpc("decrement_followers" as any, { p_user_id: followingId }),
+      supabase.rpc("decrement_following" as any, { p_user_id: followerId }),
+    ]);
+  },
+
+  async isFollowing(followerId: string, followingId: string): Promise<boolean> {
+    const { data } = await supabase
+      .from("follows" as any)
+      .select("id")
+      .eq("follower_id", followerId)
+      .eq("following_id", followingId)
+      .maybeSingle();
+    return !!data;
+  },
+
+  async getFollowingIds(userId: string): Promise<string[]> {
+    const { data } = await supabase
+      .from("follows" as any)
+      .select("following_id")
+      .eq("follower_id", userId);
+    return (data || []).map((f: any) => f.following_id);
+  },
+
+  async getFollowCounts(userId: string): Promise<{ followers: number; following: number }> {
+    const { data } = await supabase
+      .from("profiles")
+      .select("followers_count, following_count")
+      .eq("id", userId)
+      .single();
+    return {
+      followers: (data as any)?.followers_count || 0,
+      following: (data as any)?.following_count || 0,
+    };
   },
 };
