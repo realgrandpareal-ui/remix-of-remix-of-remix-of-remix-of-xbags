@@ -323,6 +323,12 @@ export const feedAPI = {
     return { ...data, author: (data as any).profiles } as Comment;
   },
 
+  async deleteComment(commentId: string, postId: string) {
+    const { error } = await supabase.from("post_comments").delete().eq("id", commentId);
+    if (error) throw error;
+    await supabase.rpc("decrement_comments" as any, { p_post_id: postId });
+  },
+
   // ─── DELETE POST ───────────────────────────────────────
   async deletePost(postId: string) {
     const { error } = await supabase.from("posts").delete().eq("id", postId);
