@@ -150,7 +150,7 @@ export function useCreateTransaction() {
       try {
         const { data, error: fnError } = await supabase.functions.invoke("bags-trade", {
           body: {
-            action: "transaction",
+            action: "swap",
             quoteResponse: {
               requestId: quoteResponse.requestId,
               contextSlot: quoteResponse.contextSlot,
@@ -174,7 +174,7 @@ export function useCreateTransaction() {
         if (fnError) throw new Error(fnError.message);
         if (!data?.success) throw new Error(data?.error || "Failed to create transaction");
 
-        const txBase64 = data.response?.transaction as string;
+        const txBase64 = data.transaction as string;
         if (!txBase64) throw new Error("No transaction returned from API");
 
         setTransaction(txBase64);
