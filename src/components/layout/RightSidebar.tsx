@@ -22,18 +22,30 @@ interface Token {
   createdAt?: number | null;
 }
 
+function parseDisplayNumber(value: string | number | null | undefined): number | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value === "number") return Number.isFinite(value) ? value : null;
+
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+
+  const multiplier = trimmed.endsWith("M") ? 1_000_000 : trimmed.endsWith("K") ? 1_000 : 1;
+  const normalized = trimmed.replace(/[$,MK]/g, "");
+  const parsed = parseFloat(normalized);
+
+  return Number.isFinite(parsed) ? parsed * multiplier : null;
+}
+
 function toToken(tc: TokenCard): Token {
-  const mcNum = parseFloat(tc.marketCap.replace(/[$,KM]/g, '')) * 
-    (tc.marketCap.includes('M') ? 1_000_000 : tc.marketCap.includes('K') ? 1_000 : 1);
   return {
     tokenAddress: tc.mint,
     icon: tc.image || null,
     name: tc.name,
     symbol: tc.symbol,
-    priceUsd: tc.priceUsd.replace('$', ''),
+    priceUsd: typeof tc.priceUsd === "string" ? tc.priceUsd.replace(/^\$/, "") : null,
     priceChange24h: tc.priceChangePct,
     volume24h: null,
-    marketCap: isNaN(mcNum) ? null : mcNum,
+    marketCap: parseDisplayNumber(tc.marketCap),
     url: `https://dexscreener.com/solana/${tc.mint}`,
     createdAt: tc.ageMs ? Date.now() - tc.ageMs : null,
   };
