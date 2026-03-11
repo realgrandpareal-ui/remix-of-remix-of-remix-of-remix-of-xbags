@@ -93,8 +93,18 @@ export const feedAPI = {
     let query = supabase
       .from("posts")
       .select(POST_WITH_AUTHOR)
-      .eq("is_published", true)
-      .range((page - 1) * limit, page * limit - 1);
+      .eq("is_published", true);
+
+    // For "following" tab, fetch only posts from followed users
+    if (tab === "following" && currentUserProfileId) {
+      const followingIds = await this.getFollowingIds(currentUserProfileId);
+      if (followingIds.length === 0) {
+        return { posts: [], hasMore: false };
+      }
+      query = query.in("user_id", followingIds);
+    }
+
+    query = query.range((page - 1) * limit, page * limit - 1);
 
     switch (tab) {
       case "popular":
