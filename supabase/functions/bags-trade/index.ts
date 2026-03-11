@@ -7,6 +7,19 @@ const corsHeaders = {
 
 const BAGS_API_BASE = 'https://public-api-v2.bags.fm/api/v1';
 
+async function safeFetch(url: string, options?: RequestInit) {
+  const res = await fetch(url, options);
+  const text = await res.text();
+  
+  console.log(`[bags-trade] ${options?.method || 'GET'} ${url} → status ${res.status}, preview: ${text.slice(0, 200)}`);
+  
+  if (!res.ok || text.startsWith('<!') || text.startsWith('<')) {
+    throw new Error(`bags.fm API error (status ${res.status}): ${text.slice(0, 200)}`);
+  }
+  
+  return JSON.parse(text);
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -24,8 +37,6 @@ serve(async (req) => {
     const { action, ...params } = await req.json();
 
     if (action === 'quote') {
-      // Get trade quote from bags.fm
-      // params: inputMint, outputMint, amount, slippageMode (optional)
       const queryParams = new URLSearchParams({
         inputMint: params.inputMint,
         outputMint: params.outputMint,
@@ -36,10 +47,10 @@ serve(async (req) => {
         queryParams.set('slippageBps', params.slippageBps.toString());
       }
 
-      const res = await fetch(`${BAGS_API_BASE}/trade/quote?${queryParams}`, {
+      const data = await safeFetch(`${BAGS_API_BASE}/trade/quote?${queryParams}`, {
+        method: 'GET',
         headers: { 'x-api-key': BAGS_API_KEY },
       });
-      const data = await res.json();
 
       return new Response(JSON.stringify(data), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -47,9 +58,7 @@ serve(async (req) => {
     }
 
     if (action === 'swap') {
-      // Create swap transaction
-      // params: quoteResponse, userPublicKey
-      const res = await fetch(`${BAGS_API_BASE}/trade/swap`, {
+      const data = await safeFetch(`${BAGS_API_BASE}/trade/swap`, {
         method: 'POST',
         headers: {
           'x-api-key': BAGS_API_KEY,
@@ -60,7 +69,6 @@ serve(async (req) => {
           userPublicKey: params.userPublicKey,
         }),
       });
-      const data = await res.json();
 
       return new Response(JSON.stringify(data), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -73,6 +81,7 @@ serve(async (req) => {
     });
   } catch (error) {
     const msg = error instanceof Error ? error.message : 'Unknown error';
+    console.error('[bags-trade] Error:', msg);
     return new Response(JSON.stringify({ success: false, error: msg }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
