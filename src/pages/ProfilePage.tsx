@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { MapPin, Link as LinkIcon, Calendar, Edit, Camera, Loader2 } from "lucide-react";
+import { MapPin, Link as LinkIcon, Calendar, Edit, Camera, Loader2, UserPlus, UserMinus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
@@ -14,6 +14,7 @@ import type { Profile } from "@/hooks/use-profile";
 import type { Post } from "@/lib/api/feed";
 import PostCard from "@/components/feed/PostCard";
 import PostSkeleton from "@/components/feed/PostSkeleton";
+import { toast } from "sonner";
 
 const ProfilePage = () => {
   const { username } = useParams();
@@ -35,6 +36,12 @@ const ProfilePage = () => {
   const [bannerUploading, setBannerUploading] = useState(false);
   const bannerInputRef = useRef<HTMLInputElement>(null);
 
+  // Follow state
+  const [isFollowing, setIsFollowing] = useState(false);
+  const [followLoading, setFollowLoading] = useState(false);
+  const [followersCount, setFollowersCount] = useState(0);
+  const [followingCount, setFollowingCount] = useState(0);
+
   const isOwnProfile = !username || username === "me" || username === myProfile?.username;
 
   useEffect(() => {
@@ -53,6 +60,18 @@ const ProfilePage = () => {
         });
     }
   }, [username, myProfile, isOwnProfile]);
+
+  // Load follow counts and check if following
+  useEffect(() => {
+    if (!viewProfile?.id) return;
+    feedAPI.getFollowCounts(viewProfile.id).then(({ followers, following }) => {
+      setFollowersCount(followers);
+      setFollowingCount(following);
+    });
+    if (myProfile?.id && !isOwnProfile) {
+      feedAPI.isFollowing(myProfile.id, viewProfile.id).then(setIsFollowing);
+    }
+  }, [viewProfile?.id, myProfile?.id, isOwnProfile]);
 
   // Load posts
   useEffect(() => {
@@ -122,6 +141,28 @@ const ProfilePage = () => {
     }
   };
 
+  const handleFollow = async () => {
+    if (!myProfile?.id || !viewProfile?.id) return toast.error("Connect wallet first");
+    setFollowLoading(true);
+    try {
+      if (isFollowing) {
+        await feedAPI.unfollowUser(myProfile.id, viewProfile.id);
+        setIsFollowing(false);
+        setFollowersCount(c => Math.max(0, c - 1));
+        toast.success("Unfollowed");
+      } else {
+        await feedAPI.followUser(myProfile.id, viewProfile.id);
+        setIsFollowing(true);
+        setFollowersCount(c => c + 1);
+        toast.success("Followed!");
+      }
+    } catch {
+      toast.error("Failed");
+    } finally {
+      setFollowLoading(false);
+    }
+  };
+
   const profile = viewProfile;
   const bannerUrl = (profile as any)?.banner_url;
 
@@ -167,14 +208,34 @@ const ProfilePage = () => {
               <span className="flex items-center gap-1"><Calendar className="h-3 w-3" /> Joined {profile?.created_at ? new Date(profile.created_at).toLocaleDateString("en-US", { month: "short", year: "numeric" }) : "—"}</span>
             </div>
           </div>
-          {isOwnProfile && (
+          {isOwnProfile ? (
             <Button variant="outline" size="sm" className="gap-2 border-border self-start hover:border-primary" onClick={() => setShowSetupModal(true)}>
               <Edit className="h-3.5 w-3.5" /> Edit Profile
+            </Button>
+          ) : (
+            <Button
+              variant={isFollowing ? "outline" : "default"}
+              size="sm"
+              className="gap-2 self-start"
+              onClick={handleFollow}
+              disabled={followLoading}
+            >
+              {followLoading ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : isFollowing ? (
+                <><UserMinus className="h-3.5 w-3.5" /> Unfollow</>
+              ) : (
+                <><UserPlus className="h-3.5 w-3.5" /> Follow</>
+              )}
             </Button>
           )}
         </div>
         <div className="flex gap-6 mt-6">
-          {[{ value: String(postsCount), label: "Posts" }, { value: "0", label: "Followers" }, { value: "0", label: "Following" }].map((s) => (
+          {[
+            { value: String(postsCount), label: "Posts" },
+            { value: String(followersCount), label: "Followers" },
+            { value: String(followingCount), label: "Following" },
+          ].map((s) => (
             <div key={s.label}><span className="font-bold text-foreground">{s.value}</span> <span className="text-sm text-muted-foreground">{s.label}</span></div>
           ))}
         </div>
