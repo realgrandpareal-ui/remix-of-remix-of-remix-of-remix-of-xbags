@@ -405,6 +405,7 @@ export default function PostCard({ post, onUpdate, onDelete, index }: PostCardPr
                   <CommentSection
                     postId={targetPostId}
                     onCommentAdded={() => onUpdate(targetPostId, { comments_count: displayPost.comments_count + 1 })}
+                    onCommentDeleted={() => onUpdate(targetPostId, { comments_count: Math.max(0, displayPost.comments_count - 1) })}
                   />
                 </motion.div>
               )}

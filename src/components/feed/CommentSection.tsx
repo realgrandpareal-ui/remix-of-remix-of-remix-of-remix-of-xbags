@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Send, Loader2 } from "lucide-react";
+import { Send, Loader2, Trash2 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { feedAPI, Comment } from "@/lib/api/feed";
@@ -20,14 +20,16 @@ function timeAgo(dateStr: string) {
 interface Props {
   postId: string;
   onCommentAdded: () => void;
+  onCommentDeleted?: () => void;
 }
 
-export default function CommentSection({ postId, onCommentAdded }: Props) {
+export default function CommentSection({ postId, onCommentAdded, onCommentDeleted }: Props) {
   const { profile } = useProfile();
   const [comments, setComments] = useState<Comment[]>([]);
   const [loading, setLoading] = useState(true);
   const [text, setText] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -52,6 +54,20 @@ export default function CommentSection({ postId, onCommentAdded }: Props) {
     }
   };
 
+  const handleDelete = async (commentId: string) => {
+    setDeletingId(commentId);
+    try {
+      await feedAPI.deleteComment(commentId, postId);
+      setComments((prev) => prev.filter((c) => c.id !== commentId));
+      onCommentDeleted?.();
+      toast.success("Comment deleted");
+    } catch {
+      toast.error("Failed to delete comment");
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   return (
     <div className="mt-3 pt-3 border-t border-border">
       {loading ? (
@@ -61,7 +77,7 @@ export default function CommentSection({ postId, onCommentAdded }: Props) {
       ) : (
         <div className="space-y-3 max-h-60 overflow-y-auto">
           {comments.map((c) => (
-            <div key={c.id} className="flex gap-2">
+            <div key={c.id} className="flex gap-2 group">
               <Avatar className="h-6 w-6 shrink-0">
                 <AvatarImage src={c.author?.avatar_url || undefined} />
                 <AvatarFallback className="text-[10px] bg-muted">
@@ -74,6 +90,21 @@ export default function CommentSection({ postId, onCommentAdded }: Props) {
                     {c.author?.display_name || c.author?.username || "Anonymous"}
                   </span>
                   <span className="text-[10px] text-muted-foreground">{timeAgo(c.created_at)}</span>
+                  {profile?.id === c.user_id && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive ml-auto"
+                      onClick={() => handleDelete(c.id)}
+                      disabled={deletingId === c.id}
+                    >
+                      {deletingId === c.id ? (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      ) : (
+                        <Trash2 className="h-3 w-3" />
+                      )}
+                    </Button>
+                  )}
                 </div>
                 <p className="text-xs text-foreground/80 mt-0.5">{c.content}</p>
               </div>

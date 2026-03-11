@@ -323,6 +323,12 @@ export const feedAPI = {
     return { ...data, author: (data as any).profiles } as Comment;
   },
 
+  async deleteComment(commentId: string, postId: string) {
+    const { error } = await supabase.from("post_comments").delete().eq("id", commentId);
+    if (error) throw error;
+    await supabase.rpc("decrement_comments" as any, { p_post_id: postId });
+  },
+
   // ─── DELETE POST ───────────────────────────────────────
   async deletePost(postId: string) {
     const { error } = await supabase.from("posts").delete().eq("id", postId);
@@ -421,6 +427,70 @@ export const feedAPI = {
     if (error) throw error;
     let posts = (data || []).map(mapPost);
     posts = await attachParentPosts(posts);
+    return posts;
+  },
+
+  // ─── GET USER LIKED POSTS ─────────────────────────────
+  async getUserLikedPosts(userId: string) {
+    const { data: likes, error: likesError } = await supabase
+      .from("post_likes")
+      .select("post_id")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false })
+      .limit(50);
+
+    if (likesError) throw likesError;
+    if (!likes || likes.length === 0) return [];
+
+    const postIds = likes.map((l: any) => l.post_id);
+    const { data, error } = await supabase
+      .from("posts")
+      .select(POST_WITH_AUTHOR)
+      .in("id", postIds)
+      .eq("is_published", true);
+
+    if (error) throw error;
+    let posts = (data || []).map(mapPost);
+    posts = await attachParentPosts(posts);
+    // Preserve the order from likes (most recent like first)
+    const orderMap = new Map(postIds.map((id: string, i: number) => [id, i]));
+    posts.sort((a, b) => (orderMap.get(a.id) ?? 0) - (orderMap.get(b.id) ?? 0));
+    posts.forEach(p => { p.is_liked = true; });
+    return posts;
+  },
+
+  // ─── GET USER REPLIES (comments) ──────────────────────
+  async getUserReplies(userId: string) {
+    const { data, error } = await supabase
+      .from("post_comments")
+      .select("*, profiles!post_comments_user_id_fkey(username, display_name, avatar_url), posts!post_comments_post_id_fkey(*, profiles!posts_user_id_fkey(id, username, display_name, avatar_url, wallet_address))")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false })
+      .limit(50);
+
+    if (error) throw error;
+    return (data || []).map((c: any) => ({
+      ...c,
+      author: c.profiles || undefined,
+      post: c.posts ? mapPost(c.posts) : undefined,
+    }));
+  },
+
+  // ─── GET USER MEDIA POSTS ────────────────────────────
+  async getUserMediaPosts(userId: string) {
+    const { data, error } = await supabase
+      .from("posts")
+      .select(POST_WITH_AUTHOR)
+      .eq("user_id", userId)
+      .eq("is_published", true)
+      .neq("media_type", "none")
+      .order("created_at", { ascending: false })
+      .limit(50);
+
+    if (error) throw error;
+    let posts = (data || []).map(mapPost);
+    // Also filter to only those with actual media URLs
+    posts = posts.filter(p => p.media_urls && p.media_urls.length > 0 && p.media_urls[0] !== "");
     return posts;
   },
 };
