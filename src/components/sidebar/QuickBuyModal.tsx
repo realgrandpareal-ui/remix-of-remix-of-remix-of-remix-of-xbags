@@ -34,7 +34,7 @@ const QuickBuyModal = ({ token, onClose }: QuickBuyModalProps) => {
   const [loading, setLoading] = useState(false);
   const [quoteData, setQuoteData] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
-  const { walletAddress } = useWallet();
+  const { address: walletAddress } = useWallet();
   const { toast } = useToast();
 
   const handleGetQuote = async () => {
