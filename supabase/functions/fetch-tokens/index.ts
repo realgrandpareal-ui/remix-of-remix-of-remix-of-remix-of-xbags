@@ -63,39 +63,44 @@ serve(async (req) => {
       // New tokens from bags.fm API
       const BAGS_API_KEY = Deno.env.get('BAGS_API_KEY');
       if (!BAGS_API_KEY) {
-        return new Response(JSON.stringify({ success: false, error: 'BAGS_API_KEY not configured' }), {
-          status: 500,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      }
-
-      const res = await fetch(`${BAGS_API_BASE}/coins?limit=5&sort=created_at&order=desc`, {
-        headers: { 'x-api-key': BAGS_API_KEY },
-      });
-      const data = await res.json();
-
-      if (!res.ok) {
-        // Fallback to DexScreener if bags.fm fails
-        console.error('bags.fm API error:', data);
+        console.error('BAGS_API_KEY not configured, falling back to DexScreener');
         return await fetchNewFromDexScreener();
       }
 
-      const coins = data?.coins || data?.data || data || [];
-      const tokens = (Array.isArray(coins) ? coins : []).slice(0, 5).map((coin: any) => ({
-        tokenAddress: coin.mint || coin.token_address || coin.address || '',
-        icon: coin.image_url || coin.icon || coin.logo || null,
-        name: coin.name || 'Unknown',
-        symbol: coin.symbol || coin.ticker || null,
-        priceUsd: coin.price_usd?.toString() || coin.price?.toString() || null,
-        priceChange24h: coin.price_change_24h || coin.change_24h || null,
-        marketCap: coin.market_cap || coin.mcap || null,
-        url: coin.mint ? `https://bags.fm/token/${coin.mint}` : '#',
-        createdAt: coin.created_at ? new Date(coin.created_at).getTime() : null,
-      }));
+      try {
+        const res = await fetch(`${BAGS_API_BASE}/coins?limit=5&sort=created_at&order=desc`, {
+          headers: { 'x-api-key': BAGS_API_KEY },
+        });
 
-      return new Response(JSON.stringify({ success: true, tokens }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+        const responseText = await res.text();
+        console.log('bags.fm status:', res.status, 'response preview:', responseText.slice(0, 200));
+
+        if (!res.ok || responseText.startsWith('<!') || responseText.startsWith('<')) {
+          console.error('bags.fm returned non-JSON, falling back to DexScreener');
+          return await fetchNewFromDexScreener();
+        }
+
+        const data = JSON.parse(responseText);
+        const coins = data?.coins || data?.data || data?.tokens || (Array.isArray(data) ? data : []);
+        const tokens = (Array.isArray(coins) ? coins : []).slice(0, 5).map((coin: any) => ({
+          tokenAddress: coin.mint || coin.token_address || coin.address || '',
+          icon: coin.image_url || coin.icon || coin.logo || null,
+          name: coin.name || 'Unknown',
+          symbol: coin.symbol || coin.ticker || null,
+          priceUsd: coin.price_usd?.toString() || coin.price?.toString() || null,
+          priceChange24h: coin.price_change_24h || coin.change_24h || null,
+          marketCap: coin.market_cap || coin.mcap || null,
+          url: coin.mint ? `https://bags.fm/token/${coin.mint}` : '#',
+          createdAt: coin.created_at ? new Date(coin.created_at).getTime() : null,
+        }));
+
+        return new Response(JSON.stringify({ success: true, tokens, source: 'bags.fm' }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      } catch (e) {
+        console.error('bags.fm fetch failed:', e);
+        return await fetchNewFromDexScreener();
+      }
     }
 
     return new Response(JSON.stringify({ success: false, error: 'Invalid type' }), {
