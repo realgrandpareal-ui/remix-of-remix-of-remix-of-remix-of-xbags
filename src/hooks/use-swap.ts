@@ -1,8 +1,8 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { useConnection, useWallet as useSolanaWallet } from "@solana/wallet-adapter-react";
-import { Transaction, VersionedTransaction } from "@solana/web3.js";
+import { VersionedTransaction } from "@solana/web3.js";
 import { supabase } from "@/integrations/supabase/client";
-import { Buffer } from "buffer";
+import bs58 from "bs58";
 
 // ── Types ──────────────────────────────────────────────
 
@@ -15,15 +15,16 @@ export interface RoutePlanStep {
   inputMintDecimals: number;
   outputMintDecimals: number;
   marketKey: string;
-  data: string;
+  data?: string;
 }
 
 export interface PlatformFee {
   amount: string;
   feeBps: number;
-  feeAccount: string;
-  segmenterFeeAmount: string;
-  segmenterFeePct: number;
+  mode?: string;
+  feeAccount?: string;
+  segmenterFeeAmount?: string;
+  segmenterFeePct?: number;
 }
 
 export interface QuoteResponse {
@@ -41,10 +42,6 @@ export interface QuoteResponse {
   platformFee: PlatformFee;
   outTransferFee: string | null;
   simulatedComputeUnits: number;
-}
-
-export interface TransactionResponse {
-  transaction: string; // base64
 }
 
 // ── SOL constants ──────────────────────────────────────
@@ -124,7 +121,6 @@ export function useGetQuote() {
     quoteTimestampRef.current = 0;
   }, []);
 
-  // Cleanup debounce on unmount
   useEffect(() => {
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -137,36 +133,19 @@ export function useGetQuote() {
 // ── useCreateTransaction ───────────────────────────────
 
 export function useCreateTransaction() {
-  const [transaction, setTransaction] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const execute = useCallback(
-    async (quoteResponse: QuoteResponse, userPublicKey: string): Promise<string | null> => {
+    async (quoteResponse: QuoteResponse, userPublicKey: string) => {
       setIsLoading(true);
       setError(null);
-      setTransaction(null);
 
       try {
         const { data, error: fnError } = await supabase.functions.invoke("bags-trade", {
           body: {
             action: "swap",
-            quoteResponse: {
-              requestId: quoteResponse.requestId,
-              contextSlot: quoteResponse.contextSlot,
-              inAmount: quoteResponse.inAmount,
-              inputMint: quoteResponse.inputMint,
-              outAmount: quoteResponse.outAmount,
-              outputMint: quoteResponse.outputMint,
-              minOutAmount: quoteResponse.minOutAmount,
-              otherAmountThreshold: quoteResponse.otherAmountThreshold,
-              priceImpactPct: quoteResponse.priceImpactPct,
-              slippageBps: quoteResponse.slippageBps,
-              routePlan: quoteResponse.routePlan,
-              platformFee: quoteResponse.platformFee,
-              outTransferFee: quoteResponse.outTransferFee,
-              simulatedComputeUnits: quoteResponse.simulatedComputeUnits,
-            },
+            quoteResponse,
             userPublicKey,
           },
         });
@@ -174,11 +153,13 @@ export function useCreateTransaction() {
         if (fnError) throw new Error(fnError.message);
         if (!data?.success) throw new Error(data?.error || "Failed to create transaction");
 
-        const txBase64 = data.transaction as string;
-        if (!txBase64) throw new Error("No transaction returned from API");
+        const swapTx = data.swapTransaction as string;
+        if (!swapTx) throw new Error("No swapTransaction returned from API");
 
-        setTransaction(txBase64);
-        return txBase64;
+        return {
+          swapTransaction: swapTx,
+          lastValidBlockHeight: data.lastValidBlockHeight as number | undefined,
+        };
       } catch (err: any) {
         const msg = err.message || "Failed to create transaction";
         setError(msg);
@@ -190,7 +171,7 @@ export function useCreateTransaction() {
     []
   );
 
-  return { transaction, isLoading, error, execute };
+  return { isLoading, error, execute };
 }
 
 // ── useSwap (combines everything) ──────────────────────
@@ -230,19 +211,17 @@ export function useSwap() {
         setSwapError("Please connect your wallet first");
         return null;
       }
-
       if (!signTransaction) {
         setSwapError("Wallet does not support transaction signing");
         return null;
       }
-
       if (amountSol <= 0) {
         setSwapError("Enter a valid amount");
         return null;
       }
 
       try {
-        // Step 1: Get fresh quote if stale
+        // Step 1: Fresh quote if stale
         let currentQuote = quote;
         if (!currentQuote || isQuoteStale()) {
           currentQuote = await fetchQuote(outputMint, amountSol);
@@ -252,22 +231,15 @@ export function useSwap() {
           return null;
         }
 
-        // Step 2: Create transaction
-        const txBase64 = await createTransaction(currentQuote, publicKey.toBase58());
-        if (!txBase64) return null;
+        // Step 2: Create swap transaction
+        const result = await createTransaction(currentQuote, publicKey.toBase58());
+        if (!result) return null;
 
-        // Step 3: Sign & send
+        // Step 3: Decode Base58, sign & send
         setIsSigning(true);
 
-        const txBuffer = Buffer.from(txBase64, "base64");
-
-        let tx: Transaction | VersionedTransaction;
-        try {
-          tx = VersionedTransaction.deserialize(new Uint8Array(txBuffer));
-        } catch {
-          tx = Transaction.from(txBuffer);
-        }
-
+        const txBytes = bs58.decode(result.swapTransaction);
+        const tx = VersionedTransaction.deserialize(txBytes);
         const signedTx = await signTransaction(tx);
 
         const signature = await connection.sendRawTransaction(signedTx.serialize(), {
@@ -275,7 +247,19 @@ export function useSwap() {
           maxRetries: 3,
         });
 
-        await connection.confirmTransaction(signature, "confirmed");
+        // Confirm with lastValidBlockHeight if available
+        if (result.lastValidBlockHeight) {
+          await connection.confirmTransaction(
+            {
+              signature,
+              lastValidBlockHeight: result.lastValidBlockHeight,
+              blockhash: tx.message.recentBlockhash,
+            },
+            "confirmed"
+          );
+        } else {
+          await connection.confirmTransaction(signature, "confirmed");
+        }
 
         setTxSignature(signature);
         clearQuote();
