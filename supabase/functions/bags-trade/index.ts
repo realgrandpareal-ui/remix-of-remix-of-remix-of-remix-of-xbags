@@ -13,21 +13,21 @@ async function safeFetch(url: string, options?: RequestInit) {
 
   console.log(`[bags-trade] ${options?.method || 'GET'} ${url}`);
   console.log(`[bags-trade] status: ${res.status}`);
-  console.log(`[bags-trade] FULL response: ${text}`);
+  console.log(`[bags-trade] response: ${text}`);
 
   if (text.startsWith('<!') || text.startsWith('<html')) {
-    throw new Error(`bags.fm returned HTML (status ${res.status}) — wrong endpoint or method`);
+    throw new Error(`HTML response (status ${res.status}) — wrong endpoint`);
   }
 
   let parsed;
   try {
     parsed = JSON.parse(text);
   } catch {
-    throw new Error(`bags.fm non-JSON (status ${res.status}): ${text.slice(0, 300)}`);
+    throw new Error(`non-JSON (status ${res.status}): ${text.slice(0, 300)}`);
   }
 
   if (!res.ok) {
-    throw new Error(`bags.fm error (status ${res.status}): ${JSON.stringify(parsed)}`);
+    throw new Error(`API error (status ${res.status}): ${JSON.stringify(parsed)}`);
   }
 
   return parsed;
@@ -41,88 +41,113 @@ serve(async (req) => {
   try {
     const BAGS_API_KEY = Deno.env.get('BAGS_API_KEY');
     if (!BAGS_API_KEY) {
-      return new Response(JSON.stringify({ success: false, error: 'BAGS_API_KEY not configured' }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+      return new Response(
+        JSON.stringify({ success: false, error: 'BAGS_API_KEY not configured' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
-    const body = await req.json();
-    const { action, ...params } = body;
-
+    const { action, ...params } = await req.json();
     console.log(`[bags-trade] action: ${action}`);
 
-    // ─── QUOTE → GET ──────────────────────────────────────
+    // ════════════════════════════════════════════════════
+    // QUOTE — GET /trade/quote
+    // ════════════════════════════════════════════════════
     if (action === 'quote') {
       const queryParams = new URLSearchParams({
         inputMint:    params.inputMint,
         outputMint:   params.outputMint,
-        amount:       params.amount.toString(),
+        amount:       String(params.amount),
         slippageMode: params.slippageMode || 'auto',
       });
-      if (params.slippageBps) queryParams.set('slippageBps', params.slippageBps.toString());
 
-      const data = await safeFetch(`${BAGS_API_BASE}/trade/quote?${queryParams}`, {
-        method: 'GET',
-        headers: { 'x-api-key': BAGS_API_KEY },
-      });
+      if (params.slippageMode === 'manual' && params.slippageBps !== undefined) {
+        queryParams.set('slippageBps', String(params.slippageBps));
+      }
+
+      const data = await safeFetch(
+        `${BAGS_API_BASE}/trade/quote?${queryParams}`,
+        { method: 'GET', headers: { 'x-api-key': BAGS_API_KEY } }
+      );
 
       return new Response(JSON.stringify(data), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    // ─── SWAP → GET with query params ─────────────────────
+    // ════════════════════════════════════════════════════
+    // SWAP — POST /trade/swap
+    // Body: JSON dengan quoteResponse + userPublicKey
+    // Response: swapTransaction = Base58 VersionedTransaction
+    // ════════════════════════════════════════════════════
     if (action === 'swap') {
       const q = params.quoteResponse;
 
-      const swapParams = new URLSearchParams({
-        userPublicKey:         params.userPublicKey,
-        requestId:             q.requestId,
-        contextSlot:           String(q.contextSlot),
-        inAmount:              q.inAmount,
-        inputMint:             q.inputMint,
-        outAmount:             q.outAmount,
-        outputMint:            q.outputMint,
-        minOutAmount:          q.minOutAmount,
-        otherAmountThreshold:  q.otherAmountThreshold,
-        priceImpactPct:        q.priceImpactPct,
-        slippageBps:           String(q.slippageBps),
-        simulatedComputeUnits: String(q.simulatedComputeUnits),
-      });
+      if (!q || !params.userPublicKey) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Missing quoteResponse or userPublicKey' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
 
-      if (q.routePlan)   swapParams.set('routePlan',   JSON.stringify(q.routePlan));
-      if (q.platformFee) swapParams.set('platformFee', JSON.stringify(q.platformFee));
+      // Sesuai docs: semua field required di quoteResponse
+      const swapBody = {
+        quoteResponse: {
+          requestId:             q.requestId,
+          contextSlot:           q.contextSlot,
+          inAmount:              q.inAmount,
+          inputMint:             q.inputMint,
+          outAmount:             q.outAmount,
+          outputMint:            q.outputMint,
+          minOutAmount:          q.minOutAmount,
+          otherAmountThreshold:  q.otherAmountThreshold,
+          priceImpactPct:        q.priceImpactPct,
+          slippageBps:           q.slippageBps,
+          routePlan:             q.routePlan,
+          // optional fields
+          platformFee:           q.platformFee    ?? null,
+          outTransferFee:        q.outTransferFee ?? null,
+          simulatedComputeUnits: q.simulatedComputeUnits ?? null,
+        },
+        userPublicKey: params.userPublicKey,
+      };
 
-      const data = await safeFetch(`${BAGS_API_BASE}/trade/swap?${swapParams}`, {
-        method: 'GET',
-        headers: { 'x-api-key': BAGS_API_KEY },
-      });
+      console.log(`[bags-trade] swap body: ${JSON.stringify(swapBody)}`);
 
-      console.log(`[bags-trade] swap response keys: ${JSON.stringify(Object.keys(data?.response || {}))}`);
+      const data = await safeFetch(
+        `${BAGS_API_BASE}/trade/swap`,
+        {
+          method: 'POST',
+          headers: {
+            'x-api-key':    BAGS_API_KEY,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(swapBody),
+        }
+      );
 
-      // Check all possible transaction field names
-      const txData = data?.response;
-      const txString =
-        txData?.transaction        ??
-        txData?.swapTransaction    ??
-        txData?.tx                 ??
-        txData?.serializedTx       ??
-        txData?.encodedTransaction ??
-        null;
+      // ✅ Dari docs: field = "swapTransaction" (Base58 VersionedTransaction)
+      const swapTx = data?.response?.swapTransaction;
 
-      if (!txString) {
+      if (!swapTx) {
         return new Response(JSON.stringify({
           success: false,
-          error: 'No transaction field found in response',
-          debug_response: data,
+          error:   'swapTransaction not found in response',
+          debug:   data,
         }), {
           status: 500,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
 
-      return new Response(JSON.stringify({ success: true, transaction: txString }), {
+      return new Response(JSON.stringify({
+        success:                   true,
+        // ⚠️ Base58 encoded VersionedTransaction — frontend harus decode dengan bs58, bukan atob()
+        swapTransaction:           swapTx,
+        computeUnitLimit:          data.response.computeUnitLimit,
+        lastValidBlockHeight:      data.response.lastValidBlockHeight,
+        prioritizationFeeLamports: data.response.prioritizationFeeLamports,
+      }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
@@ -135,9 +160,9 @@ serve(async (req) => {
   } catch (error) {
     const msg = error instanceof Error ? error.message : 'Unknown error';
     console.error('[bags-trade] Error:', msg);
-    return new Response(JSON.stringify({ success: false, error: msg }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    return new Response(
+      JSON.stringify({ success: false, error: msg }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
   }
 });
