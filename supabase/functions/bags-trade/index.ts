@@ -10,13 +10,13 @@ const BAGS_API_BASE = 'https://public-api-v2.bags.fm/api/v1';
 async function safeFetch(url: string, options?: RequestInit) {
   const res = await fetch(url, options);
   const text = await res.text();
-  
-  console.log(`[bags-trade] ${options?.method || 'GET'} ${url} → status ${res.status}, preview: ${text.slice(0, 200)}`);
-  
+
+  console.log(`[bags-trade] ${options?.method || 'GET'} ${url} → status ${res.status}, preview: ${text.slice(0, 300)}`);
+
   if (!res.ok || text.startsWith('<!') || text.startsWith('<')) {
-    throw new Error(`bags.fm API error (status ${res.status}): ${text.slice(0, 200)}`);
+    throw new Error(`bags.fm API error (status ${res.status}): ${text.slice(0, 300)}`);
   }
-  
+
   return JSON.parse(text);
 }
 
@@ -36,6 +36,7 @@ serve(async (req) => {
 
     const { action, ...params } = await req.json();
 
+    // ─── QUOTE ────────────────────────────────────────────
     if (action === 'quote') {
       const queryParams = new URLSearchParams({
         inputMint: params.inputMint,
@@ -57,71 +58,9 @@ serve(async (req) => {
       });
     }
 
-    if (action === 'transaction') {
-      const quoteResponse = params.quoteResponse;
-      const userPublicKey = params.userPublicKey;
-
-      if (!quoteResponse || !userPublicKey) {
-        throw new Error('Missing quoteResponse or userPublicKey');
-      }
-
-      const txParams = new URLSearchParams({
-        userPublicKey: String(userPublicKey),
-        requestId: String(quoteResponse.requestId),
-        contextSlot: String(quoteResponse.contextSlot),
-        inAmount: String(quoteResponse.inAmount),
-        inputMint: String(quoteResponse.inputMint),
-        outAmount: String(quoteResponse.outAmount),
-        outputMint: String(quoteResponse.outputMint),
-        minOutAmount: String(quoteResponse.minOutAmount),
-        otherAmountThreshold: String(quoteResponse.otherAmountThreshold),
-        priceImpactPct: String(quoteResponse.priceImpactPct),
-        slippageBps: String(quoteResponse.slippageBps),
-        simulatedComputeUnits: String(quoteResponse.simulatedComputeUnits),
-      });
-
-      const txResponse = await fetch(`${BAGS_API_BASE}/trade/swap?${txParams.toString()}`, {
-        method: 'GET',
-        headers: {
-          'x-api-key': BAGS_API_KEY,
-        },
-      });
-
-      const txText = await txResponse.text();
-      let txData: any;
-      try {
-        txData = JSON.parse(txText);
-      } catch {
-        throw new Error(`bags.fm API non-JSON response (status ${txResponse.status}): ${txText.slice(0, 500)}`);
-      }
-
-      // Log actual API response for debugging
-      console.log('Bags API status:', txResponse.status);
-      console.log('Bags API response:', JSON.stringify(txData));
-
-      if (!txResponse.ok) {
-        throw new Error(`bags.fm API error (status ${txResponse.status}): ${JSON.stringify(txData)}`);
-      }
-
-      if (!txData?.success) {
-        throw new Error(txData?.response || txData?.error || 'Transaction failed');
-      }
-
-      return new Response(
-        JSON.stringify({
-          success: true,
-          response: { transaction: txData?.response?.transaction },
-          transaction: txData?.response?.transaction,
-        }),
-        {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        }
-      );
-    }
-
-    // Keep legacy swap action for backwards compatibility
-    if (action === 'swap') {
-      const data = await safeFetch(`${BAGS_API_BASE}/trade/transaction`, {
+    // ─── SWAP / TRANSACTION (POST /trade/swap) ────────────
+    if (action === 'swap' || action === 'transaction') {
+      const data = await safeFetch(`${BAGS_API_BASE}/trade/swap`, {
         method: 'POST',
         headers: {
           'x-api-key': BAGS_API_KEY,
@@ -138,10 +77,11 @@ serve(async (req) => {
       });
     }
 
-    return new Response(JSON.stringify({ success: false, error: 'Invalid action. Use "quote" or "transaction"' }), {
-      status: 400,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    return new Response(
+      JSON.stringify({ success: false, error: 'Invalid action. Use "quote" or "swap"' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+
   } catch (error) {
     const msg = error instanceof Error ? error.message : 'Unknown error';
     console.error('[bags-trade] Error:', msg);
