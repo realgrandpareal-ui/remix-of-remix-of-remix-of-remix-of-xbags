@@ -225,8 +225,8 @@ export default function PostCard({ post, onUpdate, onDelete, index }: PostCardPr
                 </p>
               )}
 
-              {/* For regular tweets, show their content */}
-              {!isRepost && !isQuote && (
+              {/* For regular tweets and reposts, show content */}
+              {!isQuote && (
                 <p className="text-sm text-foreground leading-relaxed mt-1 whitespace-pre-line">
                   {contentLong && !expanded ? `${displayPost.content.slice(0, 200)}...` : displayPost.content}
                 </p>
