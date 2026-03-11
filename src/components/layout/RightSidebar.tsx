@@ -1,11 +1,13 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { TrendingUp, Sparkles, ExternalLink, ArrowUpRight, ArrowDownRight, Zap, UserPlus, ShoppingCart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import QuickBuyModal from "@/components/sidebar/QuickBuyModal";
 import TokenList from "@/components/sidebar/TokenList";
+import { useTrendingTokens } from "@/hooks/useTrendingTokens";
+import { useNewTokens } from "@/hooks/useNewTokens";
+import type { BagsToken } from "@/types/token";
 
 interface Token {
   tokenAddress: string;
@@ -18,6 +20,21 @@ interface Token {
   marketCap: number | null;
   url: string;
   createdAt?: number | null;
+}
+
+function toToken(bt: BagsToken): Token {
+  return {
+    tokenAddress: bt.mint,
+    icon: bt.image || null,
+    name: bt.name,
+    symbol: bt.symbol,
+    priceUsd: bt.priceUsd ? bt.priceUsd.toString() : null,
+    priceChange24h: bt.priceChange24h,
+    volume24h: bt.volume24h,
+    marketCap: bt.marketCap,
+    url: `https://dexscreener.com/solana/${bt.pairAddress || bt.mint}`,
+    createdAt: bt.pairCreatedAt || null,
+  };
 }
 
 const whoToFollow = [
@@ -33,45 +50,12 @@ const topServices = [
 ];
 
 const RightSidebar = () => {
-  const [newTokens, setNewTokens] = useState<Token[]>([]);
-  const [trendingTokens, setTrendingTokens] = useState<Token[]>([]);
-  const [loadingNew, setLoadingNew] = useState(true);
-  const [loadingTrending, setLoadingTrending] = useState(true);
   const [buyToken, setBuyToken] = useState<Token | null>(null);
+  const { tokens: rawNewTokens, isLoading: loadingNew } = useNewTokens(10);
+  const { tokens: rawTrendingTokens, isLoading: loadingTrending } = useTrendingTokens();
 
-  useEffect(() => {
-    const fetchTokens = async (type: 'new' | 'trending') => {
-      try {
-        const { data, error } = await supabase.functions.invoke('fetch-tokens', {
-          body: { type },
-        });
-        if (error) throw error;
-        if (data?.success) {
-          if (type === 'new') {
-            setNewTokens(data.tokens);
-            setLoadingNew(false);
-          } else {
-            setTrendingTokens(data.tokens);
-            setLoadingTrending(false);
-          }
-        }
-      } catch (err) {
-        console.error(`Failed to fetch ${type} tokens:`, err);
-        if (type === 'new') setLoadingNew(false);
-        else setLoadingTrending(false);
-      }
-    };
-
-    fetchTokens('new');
-    fetchTokens('trending');
-
-    const interval = setInterval(() => {
-      fetchTokens('new');
-      fetchTokens('trending');
-    }, 60000);
-
-    return () => clearInterval(interval);
-  }, []);
+  const newTokens = rawNewTokens.map(toToken);
+  const trendingTokens = rawTrendingTokens.map(toToken);
 
   return (
     <aside className="hidden lg:flex flex-col w-80 xl:w-[340px] border-l border-border bg-background h-screen sticky top-0 shrink-0 overflow-y-auto">
