@@ -111,12 +111,14 @@ const TokenList = ({ tokens, loading, emptyMessage, showTimeAgo, onBuy }: TokenL
             href={token.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex-1 min-w-0"
+            className="flex-1 min-w-0 pr-1"
           >
-            <div className="flex items-center gap-1">
-              <span className="text-sm font-semibold text-foreground truncate">{token.symbol || token.name}</span>
+            <div className="flex items-center gap-1 min-w-0">
+              <span className="text-sm font-semibold text-foreground truncate max-w-[7rem] shrink-0">
+                {token.symbol || token.name}
+              </span>
               {token.priceChange24h !== null && (
-                <span className={`text-[10px] flex items-center gap-0.5 ${token.priceChange24h >= 0 ? 'text-green-500' : 'text-destructive'}`}>
+                <span className={`text-[10px] flex items-center gap-0.5 shrink-0 whitespace-nowrap ${token.priceChange24h >= 0 ? 'text-green-500' : 'text-destructive'}`}>
                   {token.priceChange24h >= 0 ? (
                     <ArrowUpRight className="h-2.5 w-2.5" />
                   ) : (
@@ -127,7 +129,7 @@ const TokenList = ({ tokens, loading, emptyMessage, showTimeAgo, onBuy }: TokenL
               )}
             </div>
             <p className="text-xs text-muted-foreground truncate">
-              {token.name}
+              {token.name || token.symbol || "Unknown"}
               {showTimeAgo && token.createdAt && <span className="ml-1">· {formatTimeAgo(token.createdAt)}</span>}
             </p>
           </a>
