@@ -17,12 +17,18 @@ export interface BagsToken {
   pairCreatedAt: number;
 }
 
+const normalizeText = (value: unknown, fallback: string) => {
+  if (typeof value !== 'string') return fallback;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : fallback;
+};
+
 export function parsePair(pair: any): BagsToken {
   return {
-    mint:          pair.baseToken?.address         ?? '',
-    name:          pair.baseToken?.name            ?? 'Unknown',
-    symbol:        pair.baseToken?.symbol          ?? '???',
-    image:         pair.info?.imageUrl             ?? '',
+    mint:          normalizeText(pair.baseToken?.address, ''),
+    name:          normalizeText(pair.baseToken?.name, 'Unknown'),
+    symbol:        normalizeText(pair.baseToken?.symbol, '???'),
+    image:         normalizeText(pair.info?.imageUrl, ''),
     priceUsd:      parseFloat(pair.priceUsd        ?? '0'),
     priceChange1h: pair.priceChange?.h1            ?? 0,
     priceChange6h: pair.priceChange?.h6            ?? 0,
@@ -33,7 +39,7 @@ export function parsePair(pair: any): BagsToken {
     liquidity:     pair.liquidity?.usd             ?? 0,
     buys6h:        pair.txns?.h6?.buys             ?? 0,
     sells6h:       pair.txns?.h6?.sells            ?? 0,
-    pairAddress:   pair.pairAddress                ?? '',
+    pairAddress:   normalizeText(pair.pairAddress, ''),
     pairCreatedAt: pair.pairCreatedAt              ?? 0,
   };
 }
