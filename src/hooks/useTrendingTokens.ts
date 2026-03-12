@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { BagsToken, parsePair } from '../types/token';
-import { supabase } from '@/integrations/supabase/client';
 
 export function useTrendingTokens() {
   const [tokens, setTokens]     = useState<BagsToken[]>([]);
@@ -9,12 +8,6 @@ export function useTrendingTokens() {
 
   async function fetchTrending() {
     try {
-      const { data, error } = await supabase.functions.invoke('dexscreener-screener', {
-        body: null,
-        method: 'GET',
-      });
-
-      // If invoke doesn't support GET with query params, use fetch directly
       const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/dexscreener-screener?type=trending`;
       const res = await window.fetch(url, {
         headers: {
