@@ -18,16 +18,20 @@ interface Token {
 const formatPrice = (price: string | null) => {
   if (!price) return "-";
   const num = parseFloat(price);
-  if (num < 0.0001) return `$${num.toExponential(2)}`;
-  if (num < 1) return `$${num.toFixed(4)}`;
-  if (num < 1000) return `$${num.toFixed(2)}`;
-  return `$${(num / 1000).toFixed(1)}K`;
+  if (!num) return "$0.00";
+  if (num >= 1_000_000) return `$${(num / 1_000_000).toFixed(1)}M`;
+  if (num >= 1000) return `$${(num / 1000).toFixed(1)}K`;
+  if (num >= 1) return `$${num.toFixed(2)}`;
+  if (num >= 0.01) return `$${num.toFixed(4)}`;
+  // Small numbers: show 4 significant digits after leading zeros
+  const digits = Math.min(-Math.floor(Math.log10(num)) + 3, 20);
+  return `$${num.toFixed(digits).replace(/0+$/, '')}`;
 };
 
 const formatMarketCap = (mc: number | null) => {
   if (!mc) return "-";
-  if (mc >= 1_000_000) return `$${(mc / 1_000_000).toFixed(1)}M`;
-  if (mc >= 1_000) return `$${(mc / 1_000).toFixed(1)}K`;
+  if (mc >= 1_000_000) return `$${(mc / 1_000_000).toFixed(mc >= 10_000_000 ? 0 : 1)}M`;
+  if (mc >= 1_000) return `$${(mc / 1_000).toFixed(mc >= 100_000 ? 0 : 1)}K`;
   return `$${mc.toFixed(0)}`;
 };
 

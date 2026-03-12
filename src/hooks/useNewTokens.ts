@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { BagsToken, parsePair, isBagsToken } from '../types/token';
+import { BagsToken, parsePair } from '../types/token';
 
 export function useNewTokens(max = 20) {
   const [tokens, setTokens] = useState<BagsToken[]>([]);
@@ -8,13 +8,17 @@ export function useNewTokens(max = 20) {
 
   async function fetchNew() {
     try {
-      const res = await window.fetch(
-        'https://api.dexscreener.com/latest/dex/search?q=bags'
-      );
-      const data = await res.json();
+      const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/dexscreener-screener?type=new-bags`;
+      const res = await window.fetch(url, {
+        headers: {
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+        },
+      });
+      const json = await res.json();
 
-      const newTokens = (data.pairs ?? [])
-        .filter(isBagsToken)
+      const newTokens = (json.pairs ?? [])
+        .filter((p: any) => p.chainId === 'solana')
         .map(parsePair)
         .sort((a: BagsToken, b: BagsToken) => b.pairCreatedAt - a.pairCreatedAt)
         .slice(0, max);
