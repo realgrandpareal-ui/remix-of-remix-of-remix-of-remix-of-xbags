@@ -30,8 +30,10 @@ const formatPrice = (price: string | null) => {
 
 const formatMarketCap = (mc: number | null) => {
   if (!mc) return "-";
-  if (mc >= 1_000_000) return `$${(mc / 1_000_000).toFixed(1)}M`;
-  if (mc >= 1_000) return `$${(mc / 1_000).toFixed(1)}K`;
+  if (mc >= 1_000_000) return `$${(mc / 1_000_000).toFixed(mc >= 10_000_000 ? 0 : 1)}M`;
+  if (mc >= 1_000) return `$${(mc / 1_000).toFixed(mc >= 100_000 ? 0 : 1)}K`;
+  return `$${mc.toFixed(0)}`;
+};
   return `$${mc.toFixed(0)}`;
 };
 
