@@ -34,8 +34,6 @@ const formatMarketCap = (mc: number | null) => {
   if (mc >= 1_000) return `$${(mc / 1_000).toFixed(mc >= 100_000 ? 0 : 1)}K`;
   return `$${mc.toFixed(0)}`;
 };
-  return `$${mc.toFixed(0)}`;
-};
 
 const formatTimeAgo = (timestamp: number | null) => {
   if (!timestamp) return "";
