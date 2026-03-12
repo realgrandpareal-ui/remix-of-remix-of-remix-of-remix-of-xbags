@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { BagsToken, parsePair, isBagsToken } from '../types/token';
+import { BagsToken, parsePair } from '../types/token';
+import { supabase } from '@/integrations/supabase/client';
 
 export function useTrendingTokens() {
   const [tokens, setTokens]     = useState<BagsToken[]>([]);
@@ -7,18 +8,25 @@ export function useTrendingTokens() {
   const [lastUpdated, setLast]  = useState<Date | null>(null);
 
   async function fetchTrending() {
-    setLoading(true);
     try {
-      const res  = await window.fetch(
-        'https://api.dexscreener.com/latest/dex/search?q=bags'
-      );
-      const data = await res.json();
+      const { data, error } = await supabase.functions.invoke('dexscreener-screener', {
+        body: null,
+        method: 'GET',
+      });
 
-      const trending = (data.pairs ?? [])
-        .filter(isBagsToken)
+      // If invoke doesn't support GET with query params, use fetch directly
+      const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/dexscreener-screener?type=trending`;
+      const res = await window.fetch(url, {
+        headers: {
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+        },
+      });
+      const json = await res.json();
+
+      const trending = (json.pairs ?? [])
+        .filter((p: any) => p.chainId === 'solana')
         .map(parsePair)
-        .filter((t: BagsToken) => t.volume6h > 0)
-        .sort((a: BagsToken, b: BagsToken) => b.volume6h - a.volume6h)
         .slice(0, 10);
 
       setTokens(trending);
