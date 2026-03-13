@@ -1,4 +1,4 @@
-import { ExternalLink, ShoppingCart } from "lucide-react";
+import { ShoppingCart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -17,11 +17,12 @@ interface Token {
 
 const formatPrice = (price: string | null) => {
   if (!price) return "$-";
-  const n = parseFloat(price);
-  if (n < 0.000001) return "$" + n.toExponential(2);
-  if (n < 0.001) return "$" + n.toFixed(6);
-  if (n < 1) return "$" + n.toFixed(4);
-  return "$" + n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const n = Number.parseFloat(price);
+  if (!Number.isFinite(n)) return "$-";
+  if (n < 0.000001) return `$${n.toExponential(2)}`;
+  if (n < 0.001) return `$${n.toFixed(6)}`;
+  if (n < 1) return `$${n.toFixed(4)}`;
+  return `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 };
 
 const formatMarketCap = (mc: number | null) => {
@@ -42,11 +43,11 @@ const formatTimeAgo = (timestamp: number | null) => {
 };
 
 const TokenSkeleton = () => (
-  <div className="flex items-center gap-3 py-2">
+  <div className="flex items-start gap-3 py-2">
     <Skeleton className="h-9 w-9 rounded-full shrink-0" />
     <div className="flex-1 min-w-0 space-y-1.5">
-      <Skeleton className="h-3.5 w-20" />
-      <Skeleton className="h-3 w-14" />
+      <Skeleton className="h-3.5 w-24" />
+      <Skeleton className="h-3 w-20" />
     </div>
     <div className="space-y-1.5 text-right">
       <Skeleton className="h-3.5 w-16 ml-auto" />
@@ -84,51 +85,49 @@ const TokenList = ({ tokens, loading, emptyMessage, showTimeAgo, onBuy }: TokenL
       {tokens.map((token) => (
         <div
           key={token.tokenAddress}
-          className="flex items-center gap-2 hover:bg-muted/50 -mx-2 px-2 py-1.5 rounded-lg transition-colors group"
+          className="flex items-start gap-2 hover:bg-muted/50 -mx-2 px-2 py-1.5 rounded-lg transition-colors group"
         >
-          {/* Logo - fixed 36px */}
           <a
             href={token.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="h-9 w-9 rounded-full bg-muted flex items-center justify-center shrink-0 overflow-hidden"
+            className="relative h-9 w-9 rounded-full bg-muted flex items-center justify-center shrink-0 overflow-hidden"
+            aria-label={`Open ${token.name} on DexScreener`}
           >
-            {token.icon ? (
+            <span className="text-xs font-bold text-primary">
+              {token.symbol?.slice(0, 2).toUpperCase() || "?"}
+            </span>
+            {token.icon && (
               <img
                 src={token.icon}
-                alt={token.symbol || ''}
-                className="h-9 w-9 rounded-full object-cover"
-                onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                alt={token.symbol || token.name}
+                className="absolute inset-0 h-9 w-9 rounded-full object-cover"
+                onError={(e) => {
+                  e.currentTarget.style.display = "none";
+                }}
               />
-            ) : (
-              <span className="text-xs font-bold text-primary">
-                {token.symbol?.slice(0, 2) || '?'}
-              </span>
             )}
           </a>
 
-          {/* Name + Symbol - flex-1 with ellipsis */}
-          <div className="flex-1 min-w-0 overflow-hidden">
-            <div className="text-sm font-semibold text-foreground truncate">
-              {token.symbol || token.name}
+          <div className="flex-1 min-w-0 space-y-0.5">
+            <div className="text-sm font-semibold text-foreground leading-tight break-all">
+              {token.symbol || "-"}
             </div>
-            <div className="text-[11px] text-muted-foreground truncate">
+            <div className="text-[11px] text-muted-foreground leading-tight break-words">
               {token.name}
               {showTimeAgo && token.createdAt && <span className="ml-1">· {formatTimeAgo(token.createdAt)}</span>}
             </div>
           </div>
 
-          {/* Price + MC - fixed width, right-aligned */}
-          <div className="text-right shrink-0 w-[5.5rem]">
-            <div className="text-xs font-semibold text-foreground truncate">
+          <div className="text-right shrink-0 min-w-[5.75rem]">
+            <div className="text-xs font-semibold text-foreground whitespace-nowrap">
               {formatPrice(token.priceUsd)}
             </div>
-            <div className="text-[10px] text-muted-foreground">
+            <div className="text-[10px] text-muted-foreground whitespace-nowrap">
               MC {formatMarketCap(token.marketCap)}
             </div>
           </div>
 
-          {/* Quick Buy Button */}
           <Button
             size="sm"
             variant="outline"
