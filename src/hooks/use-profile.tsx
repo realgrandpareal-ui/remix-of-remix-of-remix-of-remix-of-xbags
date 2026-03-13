@@ -10,6 +10,8 @@ export interface Profile {
   display_name: string | null;
   avatar_url: string | null;
   bio: string | null;
+  location: string | null;
+  website_url: string | null;
   is_profile_complete: boolean;
   created_at: string;
   updated_at: string;
@@ -21,7 +23,14 @@ interface ProfileContextType {
   needsSetup: boolean;
   showSetupModal: boolean;
   setShowSetupModal: (show: boolean) => void;
-  updateProfile: (data: { username?: string; display_name?: string; bio?: string; avatar_url?: string }) => Promise<boolean>;
+  updateProfile: (data: {
+    username?: string;
+    display_name?: string;
+    bio?: string;
+    avatar_url?: string;
+    location?: string;
+    website_url?: string;
+  }) => Promise<boolean>;
   uploadAvatar: (file: File) => Promise<string | null>;
   checkUsernameAvailable: (username: string) => Promise<boolean>;
   refreshProfile: () => Promise<void>;
@@ -53,7 +62,6 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
       if (error) throw error;
       setProfile(data);
 
-      // Show setup modal if no profile or incomplete
       if (!data || !data.is_profile_complete) {
         setShowSetupModal(true);
       }
@@ -82,7 +90,6 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
       .maybeSingle();
 
     if (error) return false;
-    // Available if no data, or if it's the current user's profile
     return !data || data.id === profile?.id;
   }, [profile?.id]);
 
@@ -110,11 +117,12 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
     display_name?: string;
     bio?: string;
     avatar_url?: string;
+    location?: string;
+    website_url?: string;
   }): Promise<boolean> => {
     if (!address) return false;
 
     try {
-      // Check username uniqueness
       if (data.username) {
         const available = await checkUsernameAvailable(data.username);
         if (!available) {
@@ -130,14 +138,12 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
       };
 
       if (profile) {
-        // Update existing
         const { error } = await supabase
           .from("profiles")
           .update(profileData)
           .eq("wallet_address", address);
         if (error) throw error;
       } else {
-        // Insert new
         const { error } = await supabase
           .from("profiles")
           .insert(profileData);

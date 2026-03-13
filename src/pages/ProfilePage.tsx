@@ -231,8 +231,19 @@ const ProfilePage = () => {
             <p className="text-sm text-muted-foreground">@{profile?.username || "—"}</p>
             {profile?.bio && <p className="text-sm text-foreground mt-2 max-w-md">{profile.bio}</p>}
             <div className="flex flex-wrap items-center gap-3 mt-3 text-xs text-muted-foreground">
-              <span className="flex items-center gap-1"><MapPin className="h-3 w-3" /> Global</span>
-              <span className="flex items-center gap-1"><LinkIcon className="h-3 w-3" /> bags.fun</span>
+              <span className="flex items-center gap-1"><MapPin className="h-3 w-3" /> {locationLabel}</span>
+              {websiteUrl ? (
+                <a
+                  href={websiteUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1 hover:text-foreground transition-colors"
+                >
+                  <LinkIcon className="h-3 w-3" /> {websiteLabel}
+                </a>
+              ) : (
+                <span className="flex items-center gap-1"><LinkIcon className="h-3 w-3" /> bags.fun</span>
+              )}
               <span className="flex items-center gap-1"><Calendar className="h-3 w-3" /> Joined {profile?.created_at ? new Date(profile.created_at).toLocaleDateString("en-US", { month: "short", year: "numeric" }) : "—"}</span>
             </div>
           </div>
