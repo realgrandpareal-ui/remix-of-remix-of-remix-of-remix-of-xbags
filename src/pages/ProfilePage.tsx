@@ -190,6 +190,9 @@ const ProfilePage = () => {
 
   const profile = viewProfile;
   const bannerUrl = (profile as any)?.banner_url;
+  const locationLabel = ((profile as any)?.location || "Global").trim() || "Global";
+  const websiteUrl = normalizeWebsiteUrl((profile as any)?.website_url);
+  const websiteLabel = getWebsiteLabel(websiteUrl);
 
   return (
     <div className="container mx-auto max-w-3xl px-4 py-6">
