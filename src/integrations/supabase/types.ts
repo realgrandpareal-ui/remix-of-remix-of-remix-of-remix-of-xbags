@@ -288,9 +288,11 @@ export type Database = {
           following_count: number
           id: string
           is_profile_complete: boolean
+          location: string
           updated_at: string
           username: string | null
           wallet_address: string
+          website_url: string | null
         }
         Insert: {
           avatar_url?: string | null
@@ -302,9 +304,11 @@ export type Database = {
           following_count?: number
           id?: string
           is_profile_complete?: boolean
+          location?: string
           updated_at?: string
           username?: string | null
           wallet_address: string
+          website_url?: string | null
         }
         Update: {
           avatar_url?: string | null
@@ -316,9 +320,11 @@ export type Database = {
           following_count?: number
           id?: string
           is_profile_complete?: boolean
+          location?: string
           updated_at?: string
           username?: string | null
           wallet_address?: string
+          website_url?: string | null
         }
         Relationships: []
       }
