@@ -30,5 +30,5 @@ export const MOBILE_NAV_ITEMS = [
   { title: "Profile", url: "/profile/me", icon: User },
 ] as const;
 
-export const APP_NAME = "bags.fun";
+export const APP_NAME = "xbags";
 export const APP_TAGLINE = "Create. Connect. Earn.";

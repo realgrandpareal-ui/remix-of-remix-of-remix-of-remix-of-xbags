@@ -1,3 +1,4 @@
+import xbagsLogo from "@/assets/xbags-logo.png";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
 import { NAV_ITEMS, APP_NAME } from "@/lib/constants";
