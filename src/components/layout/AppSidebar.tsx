@@ -1,3 +1,4 @@
+import xbagsLogo from "@/assets/xbags-logo.png";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
 import { NAV_ITEMS, APP_NAME } from "@/lib/constants";
@@ -33,10 +34,7 @@ const AppSidebar = () => {
     <aside className="hidden md:flex flex-col w-[220px] lg:w-[240px] border-r border-border bg-background h-screen sticky top-0 shrink-0">
       {/* Logo */}
       <div className="flex items-center gap-2 px-5 py-5">
-        <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center">
-          <span className="text-sm font-black text-primary-foreground">B</span>
-        </div>
-        <span className="text-lg font-bold text-gradient">{APP_NAME}</span>
+        <img src={xbagsLogo} alt="xbags" className="h-8 w-auto" />
       </div>
 
       {/* Navigation */}
