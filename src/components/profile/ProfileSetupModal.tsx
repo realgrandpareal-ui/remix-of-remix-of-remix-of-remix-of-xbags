@@ -11,6 +11,20 @@ import { useWallet, truncateAddress } from "@/hooks/use-wallet";
 
 const USERNAME_REGEX = /^[a-zA-Z0-9_]{3,20}$/;
 
+const normalizeWebsiteUrl = (value: string): string | null => {
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+  const withProtocol = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+
+  try {
+    const parsed = new URL(withProtocol);
+    if (!["http:", "https:"].includes(parsed.protocol)) return null;
+    return parsed.toString();
+  } catch {
+    return null;
+  }
+};
+
 const ProfileSetupModal = () => {
   const { profile, showSetupModal, setShowSetupModal, updateProfile, uploadAvatar, checkUsernameAvailable } = useProfile();
   const { address } = useWallet();
@@ -18,6 +32,9 @@ const ProfileSetupModal = () => {
   const [displayName, setDisplayName] = useState(profile?.display_name || "");
   const [username, setUsername] = useState(profile?.username || "");
   const [bio, setBio] = useState(profile?.bio || "");
+  const [location, setLocation] = useState(profile?.location || "Global");
+  const [websiteUrl, setWebsiteUrl] = useState(profile?.website_url || "");
+  const [websiteError, setWebsiteError] = useState("");
   const [avatarUrl, setAvatarUrl] = useState(profile?.avatar_url || "");
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
@@ -31,11 +48,13 @@ const ProfileSetupModal = () => {
       setDisplayName(profile.display_name || "");
       setUsername(profile.username || "");
       setBio(profile.bio || "");
+      setLocation(profile.location || "Global");
+      setWebsiteUrl(profile.website_url || "");
       setAvatarUrl(profile.avatar_url || "");
+      setWebsiteError("");
     }
   }, [profile]);
 
-  // Debounced username check
   useEffect(() => {
     if (!username) {
       setUsernameStatus("idle");
@@ -66,12 +85,10 @@ const ProfileSetupModal = () => {
       return;
     }
 
-    // Show preview immediately
     const reader = new FileReader();
     reader.onload = (ev) => setAvatarPreview(ev.target?.result as string);
     reader.readAsDataURL(file);
 
-    // Upload
     setIsUploading(true);
     const url = await uploadAvatar(file);
     if (url) setAvatarUrl(url);
@@ -82,11 +99,23 @@ const ProfileSetupModal = () => {
     if (!username || !displayName) return;
     if (usernameStatus === "taken" || usernameStatus === "invalid") return;
 
+    const cleanLocation = location.trim() || "Global";
+    const trimmedWebsite = websiteUrl.trim();
+    const normalizedWebsite = normalizeWebsiteUrl(trimmedWebsite);
+
+    if (trimmedWebsite && !normalizedWebsite) {
+      setWebsiteError("Link tidak valid. Gunakan format domain.com atau https://domain.com");
+      return;
+    }
+
+    setWebsiteError("");
     setIsSaving(true);
     const success = await updateProfile({
       username,
       display_name: displayName,
       bio: bio || undefined,
+      location: cleanLocation,
+      website_url: normalizedWebsite || undefined,
       avatar_url: avatarUrl || undefined,
     });
     setIsSaving(false);
@@ -109,7 +138,6 @@ const ProfileSetupModal = () => {
         </DialogHeader>
 
         <div className="space-y-5 pt-2">
-          {/* Avatar */}
           <div className="flex flex-col items-center gap-3">
             <div className="relative group cursor-pointer" onClick={() => fileInputRef.current?.click()}>
               <Avatar className="h-20 w-20 border-2 border-border">
@@ -129,7 +157,6 @@ const ProfileSetupModal = () => {
             <p className="text-xs text-muted-foreground">Click to upload photo</p>
           </div>
 
-          {/* Display Name */}
           <div className="space-y-2">
             <Label htmlFor="displayName" className="text-foreground">Display Name *</Label>
             <Input
@@ -142,7 +169,6 @@ const ProfileSetupModal = () => {
             />
           </div>
 
-          {/* Username */}
           <div className="space-y-2">
             <Label htmlFor="username" className="text-foreground">Username *</Label>
             <div className="relative">
@@ -157,17 +183,16 @@ const ProfileSetupModal = () => {
               />
               <div className="absolute right-3 top-1/2 -translate-y-1/2">
                 {usernameStatus === "checking" && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
-                {usernameStatus === "available" && <Check className="h-4 w-4 text-green-500" />}
+                {usernameStatus === "available" && <Check className="h-4 w-4 text-primary" />}
                 {usernameStatus === "taken" && <X className="h-4 w-4 text-destructive" />}
                 {usernameStatus === "invalid" && <X className="h-4 w-4 text-destructive" />}
               </div>
             </div>
             {usernameStatus === "taken" && <p className="text-xs text-destructive">Username sudah dipakai</p>}
             {usernameStatus === "invalid" && <p className="text-xs text-destructive">3-20 karakter, hanya huruf, angka, underscore</p>}
-            {usernameStatus === "available" && <p className="text-xs text-green-500">Username tersedia!</p>}
+            {usernameStatus === "available" && <p className="text-xs text-primary">Username tersedia!</p>}
           </div>
 
-          {/* Bio */}
           <div className="space-y-2">
             <Label htmlFor="bio" className="text-foreground">Bio <span className="text-muted-foreground">(optional)</span></Label>
             <Textarea
@@ -182,7 +207,37 @@ const ProfileSetupModal = () => {
             <p className="text-xs text-muted-foreground text-right">{bio.length}/160</p>
           </div>
 
-          {/* Save */}
+          <div className="space-y-2">
+            <Label htmlFor="location" className="text-foreground">Global (Location)</Label>
+            <Input
+              id="location"
+              value={location}
+              onChange={(e) => setLocation(e.target.value)}
+              placeholder="Global"
+              maxLength={60}
+              className="bg-background border-border"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="websiteUrl" className="text-foreground">bags.fun / Website Link</Label>
+            <Input
+              id="websiteUrl"
+              value={websiteUrl}
+              onChange={(e) => {
+                setWebsiteUrl(e.target.value);
+                if (websiteError) setWebsiteError("");
+              }}
+              placeholder="https://bags.fun/username"
+              className="bg-background border-border"
+            />
+            {websiteError ? (
+              <p className="text-xs text-destructive">{websiteError}</p>
+            ) : (
+              <p className="text-xs text-muted-foreground">Contoh: bags.fun/username atau https://website.com</p>
+            )}
+          </div>
+
           <Button
             onClick={handleSave}
             disabled={!canSave || isSaving}

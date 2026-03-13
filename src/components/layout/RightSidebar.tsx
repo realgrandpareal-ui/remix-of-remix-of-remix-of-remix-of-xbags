@@ -1,10 +1,9 @@
 import { useState } from "react";
-import { TrendingUp, Sparkles, ExternalLink, ArrowUpRight, ArrowDownRight, Zap, UserPlus, ShoppingCart } from "lucide-react";
+import { TrendingUp, Sparkles, Zap, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
-import { useToast } from "@/hooks/use-toast";
 import QuickBuyModal from "@/components/sidebar/QuickBuyModal";
 import TokenList from "@/components/sidebar/TokenList";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { useTrendingTokens } from "@/hooks/useTrendingTokens";
 import { useNewTokens } from "@/hooks/useNewTokens";
 import type { BagsToken } from "@/types/token";
@@ -38,21 +37,21 @@ function toToken(bt: BagsToken): Token {
 }
 
 const whoToFollow = [
-  { name: "bags.fun", handle: "@bags", color: "bg-primary/20 text-primary" },
+  { name: "xbags", handle: "@xbags", color: "bg-primary/20 text-primary" },
   { name: "Block Builder", handle: "@blockbuilder", color: "bg-info/20 text-info" },
   { name: "Melody Chain", handle: "@melodychain", color: "bg-warning/20 text-warning" },
 ];
 
 const topServices = [
-  { name: "/launch", creator: "@bags", price: "$0.01", runs: 18 },
-  { name: "/mint-nft", creator: "@bags", price: "$0.05", runs: 43 },
+  { name: "/launch", creator: "@xbags", price: "$0.01", runs: 18 },
+  { name: "/mint-nft", creator: "@xbags", price: "$0.05", runs: 43 },
   { name: "/ai-generate", creator: "@xona_agent", price: "$0.50", runs: 2 },
 ];
 
 const RightSidebar = () => {
   const [buyToken, setBuyToken] = useState<Token | null>(null);
-  const { tokens: rawNewTokens, isLoading: loadingNew } = useNewTokens(10);
-  const { tokens: rawTrendingTokens, isLoading: loadingTrending } = useTrendingTokens();
+  const { tokens: rawNewTokens, isLoading: loadingNew } = useNewTokens(25);
+  const { tokens: rawTrendingTokens, isLoading: loadingTrending } = useTrendingTokens(25);
 
   const newTokens = rawNewTokens.map(toToken);
   const trendingTokens = rawTrendingTokens.map(toToken);
@@ -60,45 +59,45 @@ const RightSidebar = () => {
   return (
     <aside className="hidden lg:flex flex-col w-80 xl:w-[340px] border-l border-border bg-background h-screen sticky top-0 shrink-0 overflow-y-auto">
       <div className="p-4 space-y-4">
-        {/* Search */}
         <div className="relative">
           <input
             type="text"
-            placeholder="Search bags.fun"
+            placeholder="Search xbags"
             className="w-full bg-card border border-border rounded-lg px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary transition-colors"
           />
         </div>
 
-        {/* New Tokens */}
         <div className="rounded-xl bg-card border border-border p-4">
           <div className="flex items-center gap-2 mb-3">
             <Sparkles className="h-4 w-4 text-primary" />
             <h3 className="font-bold text-sm text-foreground">New Tokens</h3>
           </div>
-          <TokenList
-            tokens={newTokens}
-            loading={loadingNew}
-            emptyMessage="No new tokens found"
-            showTimeAgo
-            onBuy={setBuyToken}
-          />
+          <ScrollArea className="h-[248px] pr-2">
+            <TokenList
+              tokens={newTokens}
+              loading={loadingNew}
+              emptyMessage="No new tokens found"
+              showTimeAgo
+              onBuy={setBuyToken}
+            />
+          </ScrollArea>
         </div>
 
-        {/* Trending Tokens */}
         <div className="rounded-xl bg-card border border-border p-4">
           <div className="flex items-center gap-2 mb-3">
             <TrendingUp className="h-4 w-4 text-primary" />
             <h3 className="font-bold text-sm text-foreground">Trending Tokens</h3>
           </div>
-          <TokenList
-            tokens={trendingTokens}
-            loading={loadingTrending}
-            emptyMessage="No trending tokens found"
-            onBuy={setBuyToken}
-          />
+          <ScrollArea className="h-[248px] pr-2">
+            <TokenList
+              tokens={trendingTokens}
+              loading={loadingTrending}
+              emptyMessage="No trending tokens found"
+              onBuy={setBuyToken}
+            />
+          </ScrollArea>
         </div>
 
-        {/* Top Services */}
         <div className="rounded-xl bg-card border border-border p-4">
           <div className="flex items-center gap-2 mb-3">
             <Zap className="h-4 w-4 text-primary" />
@@ -123,7 +122,6 @@ const RightSidebar = () => {
           </div>
         </div>
 
-        {/* Who to Follow */}
         <div className="rounded-xl bg-card border border-border p-4">
           <div className="flex items-center gap-2 mb-3">
             <UserPlus className="h-4 w-4 text-primary" />
@@ -133,7 +131,7 @@ const RightSidebar = () => {
             {whoToFollow.map((user) => (
               <div key={user.handle} className="flex items-center gap-3">
                 <div className={`h-10 w-10 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${user.color}`}>
-                  {user.name.split(" ").map(w => w[0]).join("")}
+                  {user.name.split(" ").map((w) => w[0]).join("")}
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-semibold text-foreground">{user.name}</div>
@@ -148,7 +146,6 @@ const RightSidebar = () => {
         </div>
       </div>
 
-      {/* Quick Buy Modal */}
       <QuickBuyModal token={buyToken} onClose={() => setBuyToken(null)} />
     </aside>
   );

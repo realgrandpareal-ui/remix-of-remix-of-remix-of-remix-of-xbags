@@ -16,6 +16,31 @@ import PostCard from "@/components/feed/PostCard";
 import PostSkeleton from "@/components/feed/PostSkeleton";
 import { toast } from "sonner";
 
+const normalizeWebsiteUrl = (value: string | null | undefined): string | null => {
+  const trimmed = value?.trim();
+  if (!trimmed) return null;
+  const withProtocol = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+
+  try {
+    const parsed = new URL(withProtocol);
+    if (!["http:", "https:"].includes(parsed.protocol)) return null;
+    return parsed.toString();
+  } catch {
+    return null;
+  }
+};
+
+const getWebsiteLabel = (url: string | null) => {
+  if (!url) return "bags.fun";
+
+  try {
+    const parsed = new URL(url);
+    return `${parsed.hostname}${parsed.pathname === "/" ? "" : parsed.pathname}`;
+  } catch {
+    return "bags.fun";
+  }
+};
+
 const ProfilePage = () => {
   const { username } = useParams();
   const navigate = useNavigate();
@@ -165,6 +190,9 @@ const ProfilePage = () => {
 
   const profile = viewProfile;
   const bannerUrl = (profile as any)?.banner_url;
+  const locationLabel = ((profile as any)?.location || "Global").trim() || "Global";
+  const websiteUrl = normalizeWebsiteUrl((profile as any)?.website_url);
+  const websiteLabel = getWebsiteLabel(websiteUrl);
 
   return (
     <div className="container mx-auto max-w-3xl px-4 py-6">
@@ -203,8 +231,19 @@ const ProfilePage = () => {
             <p className="text-sm text-muted-foreground">@{profile?.username || "—"}</p>
             {profile?.bio && <p className="text-sm text-foreground mt-2 max-w-md">{profile.bio}</p>}
             <div className="flex flex-wrap items-center gap-3 mt-3 text-xs text-muted-foreground">
-              <span className="flex items-center gap-1"><MapPin className="h-3 w-3" /> Global</span>
-              <span className="flex items-center gap-1"><LinkIcon className="h-3 w-3" /> bags.fun</span>
+              <span className="flex items-center gap-1"><MapPin className="h-3 w-3" /> {locationLabel}</span>
+              {websiteUrl ? (
+                <a
+                  href={websiteUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1 hover:text-foreground transition-colors"
+                >
+                  <LinkIcon className="h-3 w-3" /> {websiteLabel}
+                </a>
+              ) : (
+                <span className="flex items-center gap-1"><LinkIcon className="h-3 w-3" /> bags.fun</span>
+              )}
               <span className="flex items-center gap-1"><Calendar className="h-3 w-3" /> Joined {profile?.created_at ? new Date(profile.created_at).toLocaleDateString("en-US", { month: "short", year: "numeric" }) : "—"}</span>
             </div>
           </div>

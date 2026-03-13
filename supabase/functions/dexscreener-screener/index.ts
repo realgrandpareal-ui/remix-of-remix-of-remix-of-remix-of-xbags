@@ -9,23 +9,26 @@ const corsHeaders = {
 const UA =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
 
+const normalizeType = (value: string | null | undefined) =>
+  value === "new-bags" ? "new-bags" : "trending";
+
 function buildUrls(type: string): { http: string; ws: string } {
   const base = "io.dexscreener.com/dex/screener/pairs";
 
   if (type === "new-bags") {
     const params =
-      "rankBy[key]=pairAge&rankBy[order]=asc&filters[chainIds][0]=solana&filters[dexIds][0]=bags";
+      "rankBy[key]=pairAge&rankBy[order]=asc&filters[chainIds][0]=solana&filters[dexIds][0]=bags&filters[maxLaunchpadProgress][max]=99.99&filters[launchpads][0]=1";
     return {
       http: `https://${base}/h24/1?${params}`,
       ws: `wss://${base}/h24/1?${params}`,
     };
   }
-  // trending across all Solana
+
   const params =
-    "rankBy[key]=trendingScoreH1&rankBy[order]=desc&filters[chainIds][0]=solana";
+    "rankBy[key]=trendingScoreH24&rankBy[order]=desc&filters[chainIds][0]=solana";
   return {
-    http: `https://${base}/h1/1?${params}`,
-    ws: `wss://${base}/h1/1?${params}`,
+    http: `https://${base}/h24/1?${params}`,
+    ws: `wss://${base}/h24/1?${params}`,
   };
 }
 
@@ -54,7 +57,11 @@ function fetchViaWebSocket(url: string): Promise<unknown[]> {
   return new Promise((resolve, reject) => {
     const ws = new WebSocket(url);
     const timeout = setTimeout(() => {
-      try { ws.close(); } catch {}
+      try {
+        ws.close();
+      } catch {
+        // noop
+      }
       reject(new Error("timeout"));
     }, 8000);
 
@@ -64,7 +71,11 @@ function fetchViaWebSocket(url: string): Promise<unknown[]> {
         const data = JSON.parse(raw);
         if (Array.isArray(data) && data.length > 0) {
           clearTimeout(timeout);
-          try { ws.close(); } catch {}
+          try {
+            ws.close();
+          } catch {
+            // noop
+          }
           resolve(data);
         }
       } catch {
@@ -84,10 +95,9 @@ function fetchViaWebSocket(url: string): Promise<unknown[]> {
   });
 }
 
-async function fallbackSearch(): Promise<unknown[]> {
-  const res = await fetch(
-    "https://api.dexscreener.com/latest/dex/search?q=bags"
-  );
+async function fallbackSearch(type: string): Promise<unknown[]> {
+  const query = type === "new-bags" ? "bags" : "solana";
+  const res = await fetch(`https://api.dexscreener.com/latest/dex/search?q=${query}`);
   const data = await res.json();
   return data.pairs ?? [];
 }
@@ -98,15 +108,23 @@ serve(async (req) => {
   }
 
   const url = new URL(req.url);
-  const type = url.searchParams.get("type") || "trending";
+  let type = normalizeType(url.searchParams.get("type"));
+
+  if (!url.searchParams.get("type") && req.method !== "GET" && req.method !== "HEAD") {
+    try {
+      const body = await req.json();
+      type = normalizeType(body?.type);
+    } catch {
+      // ignore invalid body
+    }
+  }
+
   const { http, ws } = buildUrls(type);
 
   let pairs: unknown[] | null = null;
 
-  // Strategy 1: HTTP GET
   pairs = await fetchViaHttp(http);
 
-  // Strategy 2: WebSocket
   if (!pairs) {
     try {
       console.log(`Trying WebSocket for ${type}...`);
@@ -116,10 +134,9 @@ serve(async (req) => {
     }
   }
 
-  // Strategy 3: Fallback search API
   if (!pairs || pairs.length === 0) {
     console.log("Falling back to search API...");
-    pairs = await fallbackSearch();
+    pairs = await fallbackSearch(type);
   }
 
   return new Response(JSON.stringify({ pairs }), {
