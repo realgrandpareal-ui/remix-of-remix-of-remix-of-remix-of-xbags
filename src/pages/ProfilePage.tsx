@@ -16,6 +16,31 @@ import PostCard from "@/components/feed/PostCard";
 import PostSkeleton from "@/components/feed/PostSkeleton";
 import { toast } from "sonner";
 
+const normalizeWebsiteUrl = (value: string | null | undefined): string | null => {
+  const trimmed = value?.trim();
+  if (!trimmed) return null;
+  const withProtocol = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+
+  try {
+    const parsed = new URL(withProtocol);
+    if (!["http:", "https:"].includes(parsed.protocol)) return null;
+    return parsed.toString();
+  } catch {
+    return null;
+  }
+};
+
+const getWebsiteLabel = (url: string | null) => {
+  if (!url) return "bags.fun";
+
+  try {
+    const parsed = new URL(url);
+    return `${parsed.hostname}${parsed.pathname === "/" ? "" : parsed.pathname}`;
+  } catch {
+    return "bags.fun";
+  }
+};
+
 const ProfilePage = () => {
   const { username } = useParams();
   const navigate = useNavigate();
