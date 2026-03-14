@@ -21,4 +21,22 @@ export default defineConfig(({ mode }) => ({
     "process.env": {},
     global: "globalThis",
   },
+  optimizeDeps: {
+    include: [
+      '@privy-io/react-auth',
+    ],
+  },
+  build: {
+    rollupOptions: {
+      onwarn(warning, warn) {
+        if (
+          warning.code === 'INVALID_ANNOTATION' ||
+          (warning.message && warning.message.includes('#__PURE__'))
+        ) {
+          return;
+        }
+        warn(warning);
+      },
+    },
+  },
 }));
