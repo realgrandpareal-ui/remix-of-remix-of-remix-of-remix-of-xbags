@@ -5,7 +5,8 @@ const solanaConnectors = toSolanaWalletConnectors({
   shouldAutoConnect: true,
 });
 
-const PRIVY_APP_ID = import.meta.env.VITE_PRIVY_APP_ID || '';
+// Privy App ID (publishable, safe in client code)
+const PRIVY_APP_ID = import.meta.env.VITE_PRIVY_APP_ID || 'cmmpzag5h00640cl2al7h4v9f';
 
 export default function SolanaWalletProvider({ children }: { children: React.ReactNode }) {
   if (!PRIVY_APP_ID) {
