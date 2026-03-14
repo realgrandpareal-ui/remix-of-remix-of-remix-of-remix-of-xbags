@@ -6,10 +6,20 @@ import {
   useEffect,
   useRef,
   ReactNode,
+  useMemo,
 } from "react";
-import { useConnection, useWallet as useSolanaWallet } from "@solana/wallet-adapter-react";
-import { LAMPORTS_PER_SOL, PublicKey, Transaction, SystemProgram } from "@solana/web3.js";
+import { usePrivy } from "@privy-io/react-auth";
+import { useWallets, useSignTransaction } from "@privy-io/react-auth/solana";
+import {
+  LAMPORTS_PER_SOL,
+  PublicKey,
+  Transaction,
+  SystemProgram,
+  Connection,
+  VersionedTransaction,
+} from "@solana/web3.js";
 import { toast } from "sonner";
+import { getRpcUrl } from "@/lib/solana-utils";
 
 export type NetworkType = "mainnet-beta" | "devnet";
 export type WalletStatus = "disconnected" | "connecting" | "connected" | "error";
@@ -33,7 +43,7 @@ interface WalletContextType {
   showBalance: boolean;
   wallets: WalletInfo[];
   selectedWalletName: string | null;
-  connect: (walletName: string) => Promise<void>;
+  connect: (walletName?: string) => Promise<void>;
   disconnect: () => void;
   copyAddress: () => void;
   toggleBalance: () => void;
@@ -46,11 +56,14 @@ interface WalletContextType {
   isRefreshing: boolean;
   sendTransaction: (to: string, amount: number) => Promise<string | null>;
   isSending: boolean;
+  signAndSendTransaction: (tx: Transaction | VersionedTransaction) => Promise<string>;
+  signTransactionFn: (tx: Transaction | VersionedTransaction) => Promise<Transaction | VersionedTransaction>;
+  connection: Connection;
 }
 
-const BALANCE_KEY = "bagsfun_show_balance";
-const NETWORK_KEY = "bagsfun_network";
-const SOL_PRICE_CACHE_KEY = "bagsfun_sol_price";
+const BALANCE_KEY = "xbags_show_balance";
+const NETWORK_KEY = "xbags_network";
+const SOL_PRICE_CACHE_KEY = "xbags_sol_price";
 
 export function addressToColor(address: string): string {
   let hash = 0;
@@ -66,7 +79,7 @@ export function truncateAddress(address: string, start = 4, end = 4): string {
   return `${address.slice(0, start)}...${address.slice(-end)}`;
 }
 
-function isValidSolanaAddress(address: string): boolean {
+export function isValidSolanaAddress(address: string): boolean {
   try {
     new PublicKey(address);
     return true;
@@ -78,17 +91,9 @@ function isValidSolanaAddress(address: string): boolean {
 const WalletContext = createContext<WalletContextType | null>(null);
 
 export function BagsFunWalletProvider({ children }: { children: ReactNode }) {
-  const { connection } = useConnection();
-  const {
-    publicKey,
-    connected,
-    connecting,
-    wallet,
-    wallets: solanaWallets,
-    select,
-    disconnect: solanaDisconnect,
-    sendTransaction: solanaSendTransaction,
-  } = useSolanaWallet();
+  const { ready, authenticated, login, logout } = usePrivy();
+  const { wallets: privyWallets } = useWallets();
+  const { signTransaction: privySignTransaction } = useSignTransaction();
 
   const [balance, setBalance] = useState<number | null>(null);
   const [solPrice, setSolPrice] = useState<number | null>(() => {
@@ -101,44 +106,51 @@ export function BagsFunWalletProvider({ children }: { children: ReactNode }) {
     } catch {}
     return null;
   });
-  const [network, setNetworkState] = useState<NetworkType>(() => {
-    return (localStorage.getItem(NETWORK_KEY) as NetworkType) || "mainnet-beta";
-  });
-  const [showBalance, setShowBalance] = useState(() => localStorage.getItem(BALANCE_KEY) !== "false");
+  const [network, setNetworkState] = useState<NetworkType>(
+    () => (localStorage.getItem(NETWORK_KEY) as NetworkType) || "mainnet-beta"
+  );
+  const [showBalance, setShowBalance] = useState(
+    () => localStorage.getItem(BALANCE_KEY) !== "false"
+  );
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [lastAttemptedWallet, setLastAttemptedWallet] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isSending, setIsSending] = useState(false);
-  const [wasConnecting, setWasConnecting] = useState(false);
   const balanceIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Track when connecting stops without becoming connected (= error/rejection)
-  useEffect(() => {
-    if (connecting) {
-      setWasConnecting(true);
-      setErrorMessage(null);
-    } else if (wasConnecting && !connected) {
-      // Was connecting but didn't connect — user rejected or error occurred
-      setWasConnecting(false);
-      setErrorMessage("Connection was rejected or failed.");
-    } else if (connected) {
-      setWasConnecting(false);
-      setErrorMessage(null);
-    }
-  }, [connecting, connected]);
+  // Pick active wallet: prefer external over embedded (privy)
+  const activeWallet = useMemo(() => {
+    if (!privyWallets || privyWallets.length === 0) return null;
+    const external = privyWallets.find((w: any) => w.walletClientType !== "privy");
+    return external ?? privyWallets[0];
+  }, [privyWallets]);
 
-  // Derive status
-  const status: WalletStatus = connecting
+  const address = activeWallet?.address ?? null;
+
+  const publicKey = useMemo(() => {
+    if (!address) return null;
+    try {
+      return new PublicKey(address);
+    } catch {
+      return null;
+    }
+  }, [address]);
+
+  const connection = useMemo(
+    () => new Connection(getRpcUrl(network), "confirmed"),
+    [network]
+  );
+
+  const isConnected = ready && authenticated && !!address;
+
+  const status: WalletStatus = !ready
     ? "connecting"
-    : connected && publicKey
+    : isConnected
     ? "connected"
     : errorMessage
     ? "error"
     : "disconnected";
 
-  const address = publicKey?.toBase58() || null;
-
-  // Fetch SOL price from CoinGecko
+  // Fetch SOL price
   const fetchSolPrice = useCallback(async () => {
     try {
       const res = await fetch(
@@ -154,9 +166,7 @@ export function BagsFunWalletProvider({ children }: { children: ReactNode }) {
           JSON.stringify({ price, timestamp: Date.now() })
         );
       }
-    } catch {
-      // Silently fail
-    }
+    } catch {}
   }, []);
 
   // Fetch balance
@@ -173,18 +183,13 @@ export function BagsFunWalletProvider({ children }: { children: ReactNode }) {
     }
   }, [publicKey, connection]);
 
-  // Auto-fetch balance when connected
+  // Auto-fetch when connected
   useEffect(() => {
-    if (connected && publicKey) {
+    if (isConnected && publicKey) {
       refreshBalance();
       fetchSolPrice();
-
-      balanceIntervalRef.current = setInterval(() => {
-        refreshBalance();
-      }, 30_000);
-
+      balanceIntervalRef.current = setInterval(refreshBalance, 30_000);
       const priceInterval = setInterval(fetchSolPrice, 5 * 60 * 1000);
-
       return () => {
         if (balanceIntervalRef.current) clearInterval(balanceIntervalRef.current);
         clearInterval(priceInterval);
@@ -193,91 +198,66 @@ export function BagsFunWalletProvider({ children }: { children: ReactNode }) {
       setBalance(null);
       if (balanceIntervalRef.current) clearInterval(balanceIntervalRef.current);
     }
-  }, [connected, publicKey, refreshBalance, fetchSolPrice]);
+  }, [isConnected, publicKey, refreshBalance, fetchSolPrice]);
 
-  // Map Solana wallets to our WalletInfo format
-  const wallets: WalletInfo[] = solanaWallets.map((w) => ({
-    name: w.adapter.name,
-    label: w.adapter.name,
-    icon: w.adapter.icon,
-    installed: w.readyState === "Installed",
-    readyState: w.readyState,
-  }));
-
-  // If no wallets detected, show known wallets with install links
-  const knownWallets: WalletInfo[] = wallets.length > 0 ? wallets : [
-    {
-      name: "Phantom",
-      label: "Phantom",
-      icon: "https://raw.githubusercontent.com/nicka/phantom-deeplink/refs/heads/master/public/phantom-icon.png",
-      installed: false,
-      readyState: "NotDetected",
-    },
-    {
-      name: "Solflare",
-      label: "Solflare",
-      icon: "https://solflare.com/favicon.ico",
-      installed: false,
-      readyState: "NotDetected",
-    },
-    {
-      name: "Backpack",
-      label: "Backpack",
-      icon: "https://backpack.app/favicon.ico",
-      installed: false,
-      readyState: "NotDetected",
-    },
-  ];
+  // Wallet list for UI
+  const wallets: WalletInfo[] = useMemo(() => {
+    if (privyWallets && privyWallets.length > 0) {
+      return privyWallets.map((w: any) => ({
+        name: w.walletClientType || "Wallet",
+        label: w.walletClientType || "Wallet",
+        icon: "",
+        installed: true,
+        readyState: "Installed",
+      }));
+    }
+    return [
+      {
+        name: "Phantom",
+        label: "Phantom",
+        icon: "https://raw.githubusercontent.com/nicka/phantom-deeplink/refs/heads/master/public/phantom-icon.png",
+        installed: false,
+        readyState: "NotDetected",
+      },
+      {
+        name: "Solflare",
+        label: "Solflare",
+        icon: "https://solflare.com/favicon.ico",
+        installed: false,
+        readyState: "NotDetected",
+      },
+    ];
+  }, [privyWallets]);
 
   const connect = useCallback(
-    async (walletName: string) => {
-      setLastAttemptedWallet(walletName);
+    async (_walletName?: string) => {
       setErrorMessage(null);
-
-      const w = solanaWallets.find((sw) => sw.adapter.name === walletName);
-      if (!w || w.readyState !== "Installed") {
-        const installUrls: Record<string, string> = {
-          Phantom: "https://phantom.app/",
-          Solflare: "https://solflare.com/",
-          Backpack: "https://backpack.app/",
-        };
-        const url = installUrls[walletName] || `https://www.google.com/search?q=${walletName}+wallet`;
-        setErrorMessage(`${walletName} is not installed.`);
-        toast.error(`${walletName} not found`, {
-          description: "Please install it from the official website.",
-          action: {
-            label: "Install",
-            onClick: () => window.open(url, "_blank"),
-          },
-        });
-        return;
+      try {
+        login();
+      } catch (err: any) {
+        setErrorMessage(err?.message || "Connection failed");
       }
-
-      // select() triggers the wallet adapter's connection flow
-      // Errors are handled by the onError callback in SolanaWalletProvider
-      // and by our wasConnecting state tracker above
-      select(w.adapter.name);
     },
-    [solanaWallets, select]
+    [login]
   );
 
-  // Show toast on successful connection
+  // Toast on connect
   const prevConnectedRef = useRef(false);
   useEffect(() => {
-    if (connected && wallet && !prevConnectedRef.current) {
+    if (isConnected && !prevConnectedRef.current) {
       toast.success("Wallet connected!", {
-        description: `Connected to ${wallet.adapter.name} on ${network === "mainnet-beta" ? "Mainnet" : "Devnet"}`,
+        description: `Connected on ${network === "mainnet-beta" ? "Mainnet" : "Devnet"}`,
       });
     }
-    prevConnectedRef.current = connected;
-  }, [connected, wallet?.adapter.name, network]);
+    prevConnectedRef.current = isConnected;
+  }, [isConnected, network]);
 
   const disconnect = useCallback(() => {
-    solanaDisconnect();
+    logout();
     setBalance(null);
     setErrorMessage(null);
     toast.info("Wallet disconnected");
-  }, [solanaDisconnect]);
+  }, [logout]);
 
   const copyAddress = useCallback(() => {
     if (address) {
@@ -294,23 +274,49 @@ export function BagsFunWalletProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  const setNetwork = useCallback(
-    (net: NetworkType) => {
-      setNetworkState(net);
-      localStorage.setItem(NETWORK_KEY, net);
-      toast.info(`Switched to ${net === "mainnet-beta" ? "Mainnet" : "Devnet"}`);
-    },
-    []
-  );
+  const setNetwork = useCallback((net: NetworkType) => {
+    setNetworkState(net);
+    localStorage.setItem(NETWORK_KEY, net);
+    toast.info(`Switched to ${net === "mainnet-beta" ? "Mainnet" : "Devnet"}`);
+  }, []);
 
   const retryConnect = useCallback(() => {
     setErrorMessage(null);
-    if (lastAttemptedWallet) connect(lastAttemptedWallet);
-  }, [lastAttemptedWallet, connect]);
+    login();
+  }, [login]);
 
+  // Sign transaction via Privy
+  const signTransactionFn = useCallback(
+    async (tx: Transaction | VersionedTransaction): Promise<Transaction | VersionedTransaction> => {
+      if (!activeWallet) throw new Error("No wallet connected");
+      const result = await privySignTransaction({
+        transaction: tx as any,
+        wallet: activeWallet as any,
+      });
+      return result.signedTransaction as unknown as Transaction | VersionedTransaction;
+    },
+    [activeWallet, privySignTransaction]
+  );
+
+  // Sign and send via Privy wallet
+  const signAndSendTransaction = useCallback(
+    async (tx: Transaction | VersionedTransaction): Promise<string> => {
+      const signed = await signTransactionFn(tx);
+      const raw = (signed as Transaction).serialize
+        ? (signed as Transaction).serialize()
+        : (signed as VersionedTransaction).serialize();
+      return await connection.sendRawTransaction(raw, {
+        skipPreflight: false,
+        preflightCommitment: "confirmed",
+      });
+    },
+    [signTransactionFn, connection]
+  );
+
+  // Legacy sendTransaction (SOL transfer by address + amount)
   const sendTransaction = useCallback(
     async (to: string, amount: number): Promise<string | null> => {
-      if (!publicKey || !connected) {
+      if (!publicKey || !isConnected) {
         toast.error("Wallet not connected");
         return null;
       }
@@ -337,8 +343,16 @@ export function BagsFunWalletProvider({ children }: { children: ReactNode }) {
           })
         );
 
-        const signature = await solanaSendTransaction(transaction, connection);
-        await connection.confirmTransaction(signature, "confirmed");
+        const { blockhash, lastValidBlockHeight } =
+          await connection.getLatestBlockhash("confirmed");
+        transaction.recentBlockhash = blockhash;
+        transaction.feePayer = publicKey;
+
+        const signature = await signAndSendTransaction(transaction);
+        await connection.confirmTransaction(
+          { signature, blockhash, lastValidBlockHeight },
+          "confirmed"
+        );
 
         toast.success("Transaction sent!", {
           description: `Signature: ${signature.slice(0, 8)}...`,
@@ -368,7 +382,7 @@ export function BagsFunWalletProvider({ children }: { children: ReactNode }) {
         setIsSending(false);
       }
     },
-    [publicKey, connected, balance, solanaSendTransaction, connection, network, refreshBalance]
+    [publicKey, isConnected, balance, connection, network, refreshBalance, signAndSendTransaction]
   );
 
   const explorerUrl = address
@@ -381,6 +395,8 @@ export function BagsFunWalletProvider({ children }: { children: ReactNode }) {
 
   const balanceUsd = balance !== null && solPrice !== null ? balance * solPrice : null;
 
+  const selectedWalletName = (activeWallet as any)?.walletClientType || null;
+
   return (
     <WalletContext.Provider
       value={{
@@ -392,8 +408,8 @@ export function BagsFunWalletProvider({ children }: { children: ReactNode }) {
         solPrice,
         network,
         showBalance,
-        wallets: knownWallets,
-        selectedWalletName: wallet?.adapter.name || null,
+        wallets,
+        selectedWalletName,
         connect,
         disconnect,
         copyAddress,
@@ -407,6 +423,9 @@ export function BagsFunWalletProvider({ children }: { children: ReactNode }) {
         isRefreshing,
         sendTransaction,
         isSending,
+        signTransactionFn,
+        signAndSendTransaction,
+        connection,
       }}
     >
       {children}
@@ -419,5 +438,3 @@ export function useWallet() {
   if (!ctx) throw new Error("useWallet must be used within BagsFunWalletProvider");
   return ctx;
 }
-
-export { isValidSolanaAddress };

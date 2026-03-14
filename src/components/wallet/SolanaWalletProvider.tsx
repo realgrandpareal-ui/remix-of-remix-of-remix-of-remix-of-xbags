@@ -1,63 +1,39 @@
-import { ReactNode, useMemo, useCallback } from "react";
-import {
-  ConnectionProvider,
-  WalletProvider,
-} from "@solana/wallet-adapter-react";
-import { WalletError } from "@solana/wallet-adapter-base";
-import { clusterApiUrl } from "@solana/web3.js";
-import type { WalletAdapterNetwork } from "@solana/wallet-adapter-base";
-import { toast } from "sonner";
+import { PrivyProvider } from '@privy-io/react-auth';
+import { toSolanaWalletConnectors } from '@privy-io/react-auth/solana';
 
-interface SolanaWalletProviderProps {
-  children: ReactNode;
-  network?: WalletAdapterNetwork;
-}
+const solanaConnectors = toSolanaWalletConnectors({
+  shouldAutoConnect: true,
+});
 
-const SolanaWalletProvider = ({
-  children,
-  network = "mainnet-beta" as WalletAdapterNetwork,
-}: SolanaWalletProviderProps) => {
-  const endpoint = useMemo(() => {
-    if (network === "devnet") return clusterApiUrl("devnet");
-    return clusterApiUrl("mainnet-beta");
-  }, [network]);
+// Privy App ID (publishable, safe in client code)
+const PRIVY_APP_ID = import.meta.env.VITE_PRIVY_APP_ID || 'cmmpzag5h00640cl2al7h4v9f';
 
-  const wallets = useMemo(() => [], []);
-
-  const onError = useCallback((error: WalletError) => {
-    const message = error.message || "Wallet error";
-
-    // Handle specific error types
-    if (
-      message.includes("User rejected") ||
-      message.includes("rejected the request") ||
-      (error as any)?.error?.code === 4001
-    ) {
-      toast.error("Connection cancelled", {
-        description: "You rejected the wallet connection request.",
-      });
-    } else if (message.includes("not found") || message.includes("not installed")) {
-      toast.error("Wallet not found", {
-        description: "Please install the wallet extension first.",
-      });
-    } else if (message.includes("Already processing")) {
-      // Ignore - duplicate request
-    } else {
-      toast.error("Wallet error", {
-        description: message,
-      });
-    }
-
-    console.warn("[Wallet Error]", error.name, message);
-  }, []);
+export default function SolanaWalletProvider({ children }: { children: React.ReactNode }) {
+  if (!PRIVY_APP_ID) {
+    console.warn('[Privy] VITE_PRIVY_APP_ID not set');
+    return <>{children}</>;
+  }
 
   return (
-    <ConnectionProvider endpoint={endpoint}>
-      <WalletProvider wallets={wallets} autoConnect onError={onError}>
-        {children}
-      </WalletProvider>
-    </ConnectionProvider>
+    <PrivyProvider
+      appId={PRIVY_APP_ID}
+      config={{
+        appearance: {
+          theme: 'dark',
+          accentColor: '#00FF7F',
+        },
+        loginMethods: ['email', 'google', 'twitter', 'wallet'],
+        externalWallets: {
+          solana: { connectors: solanaConnectors },
+        },
+        embeddedWallets: {
+          solana: {
+            createOnLogin: 'users-without-wallets',
+          },
+        },
+      }}
+    >
+      {children}
+    </PrivyProvider>
   );
-};
-
-export default SolanaWalletProvider;
+}

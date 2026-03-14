@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from "react";
-import { useConnection, useWallet as useSolanaWallet } from "@solana/wallet-adapter-react";
+import { useWallet } from "@/hooks/use-wallet";
 import { VersionedTransaction } from "@solana/web3.js";
 import { supabase } from "@/integrations/supabase/client";
 import bs58 from "bs58";
@@ -177,8 +177,7 @@ export function useCreateTransaction() {
 // ── useSwap (combines everything) ──────────────────────
 
 export function useSwap() {
-  const { connection } = useConnection();
-  const { publicKey, signTransaction } = useSolanaWallet();
+  const { publicKey, signTransactionFn, connection } = useWallet();
 
   const {
     quote,
@@ -211,7 +210,7 @@ export function useSwap() {
         setSwapError("Please connect your wallet first");
         return null;
       }
-      if (!signTransaction) {
+      if (!signTransactionFn) {
         setSwapError("Wallet does not support transaction signing");
         return null;
       }
@@ -240,14 +239,17 @@ export function useSwap() {
 
         const txBytes = bs58.decode(result.swapTransaction);
         const tx = VersionedTransaction.deserialize(txBytes);
-        const signedTx = await signTransaction(tx);
+        const signedTx = await signTransactionFn(tx);
 
-        const signature = await connection.sendRawTransaction(signedTx.serialize(), {
-          skipPreflight: false,
-          maxRetries: 3,
-        });
+        const signature = await connection.sendRawTransaction(
+          (signedTx as VersionedTransaction).serialize(),
+          {
+            skipPreflight: false,
+            maxRetries: 3,
+          }
+        );
 
-        // Confirm with lastValidBlockHeight if available
+        // Confirm
         if (result.lastValidBlockHeight) {
           await connection.confirmTransaction(
             {
@@ -276,7 +278,7 @@ export function useSwap() {
         setIsSigning(false);
       }
     },
-    [publicKey, signTransaction, quote, isQuoteStale, fetchQuote, createTransaction, connection, clearQuote]
+    [publicKey, signTransactionFn, quote, isQuoteStale, fetchQuote, createTransaction, connection, clearQuote]
   );
 
   const reset = useCallback(() => {
