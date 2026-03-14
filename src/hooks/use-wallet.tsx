@@ -9,7 +9,7 @@ import {
   useMemo,
 } from "react";
 import { usePrivy } from "@privy-io/react-auth";
-import { useSolanaWallets } from "@privy-io/react-auth/solana";
+import { useWallets, useSignTransaction } from "@privy-io/react-auth/solana";
 import {
   LAMPORTS_PER_SOL,
   PublicKey,
@@ -56,9 +56,8 @@ interface WalletContextType {
   isRefreshing: boolean;
   sendTransaction: (to: string, amount: number) => Promise<string | null>;
   isSending: boolean;
-  // Privy extras for swap
   signAndSendTransaction: (tx: Transaction | VersionedTransaction) => Promise<string>;
-  signTransaction: (tx: Transaction | VersionedTransaction) => Promise<Transaction | VersionedTransaction>;
+  signTransactionFn: (tx: Transaction | VersionedTransaction) => Promise<Transaction | VersionedTransaction>;
   connection: Connection;
 }
 
@@ -92,8 +91,9 @@ export function isValidSolanaAddress(address: string): boolean {
 const WalletContext = createContext<WalletContextType | null>(null);
 
 export function BagsFunWalletProvider({ children }: { children: ReactNode }) {
-  const { ready, authenticated, user, login, logout } = usePrivy();
-  const { wallets: solanaWallets } = useSolanaWallets();
+  const { ready, authenticated, login, logout } = usePrivy();
+  const { wallets: privyWallets } = useWallets();
+  const { signTransaction: privySignTransaction } = useSignTransaction();
 
   const [balance, setBalance] = useState<number | null>(null);
   const [solPrice, setSolPrice] = useState<number | null>(() => {
@@ -117,12 +117,12 @@ export function BagsFunWalletProvider({ children }: { children: ReactNode }) {
   const [isSending, setIsSending] = useState(false);
   const balanceIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Pick active wallet: prefer external over embedded
+  // Pick active wallet: prefer external over embedded (privy)
   const activeWallet = useMemo(() => {
-    if (!solanaWallets || solanaWallets.length === 0) return null;
-    const external = solanaWallets.find((w) => w.walletClientType !== "privy");
-    return external ?? solanaWallets[0];
-  }, [solanaWallets]);
+    if (!privyWallets || privyWallets.length === 0) return null;
+    const external = privyWallets.find((w: any) => w.walletClientType !== "privy");
+    return external ?? privyWallets[0];
+  }, [privyWallets]);
 
   const address = activeWallet?.address ?? null;
 
@@ -188,10 +188,8 @@ export function BagsFunWalletProvider({ children }: { children: ReactNode }) {
     if (isConnected && publicKey) {
       refreshBalance();
       fetchSolPrice();
-
       balanceIntervalRef.current = setInterval(refreshBalance, 30_000);
       const priceInterval = setInterval(fetchSolPrice, 5 * 60 * 1000);
-
       return () => {
         if (balanceIntervalRef.current) clearInterval(balanceIntervalRef.current);
         clearInterval(priceInterval);
@@ -202,10 +200,10 @@ export function BagsFunWalletProvider({ children }: { children: ReactNode }) {
     }
   }, [isConnected, publicKey, refreshBalance, fetchSolPrice]);
 
-  // Wallet list for UI (Privy handles its own modal, so this is informational)
+  // Wallet list for UI
   const wallets: WalletInfo[] = useMemo(() => {
-    if (solanaWallets.length > 0) {
-      return solanaWallets.map((w) => ({
+    if (privyWallets && privyWallets.length > 0) {
+      return privyWallets.map((w: any) => ({
         name: w.walletClientType || "Wallet",
         label: w.walletClientType || "Wallet",
         icon: "",
@@ -229,7 +227,7 @@ export function BagsFunWalletProvider({ children }: { children: ReactNode }) {
         readyState: "NotDetected",
       },
     ];
-  }, [solanaWallets]);
+  }, [privyWallets]);
 
   const connect = useCallback(
     async (_walletName?: string) => {
@@ -287,28 +285,32 @@ export function BagsFunWalletProvider({ children }: { children: ReactNode }) {
     login();
   }, [login]);
 
-  // Sign transaction via Privy wallet
-  const signTransaction = useCallback(
+  // Sign transaction via Privy
+  const signTransactionFn = useCallback(
     async (tx: Transaction | VersionedTransaction): Promise<Transaction | VersionedTransaction> => {
       if (!activeWallet) throw new Error("No wallet connected");
-      const signed = await activeWallet.signTransaction(tx as Transaction);
-      return signed;
+      const result = await privySignTransaction({
+        transaction: tx as any,
+        wallet: activeWallet as any,
+      });
+      return result.signedTransaction as unknown as Transaction | VersionedTransaction;
     },
-    [activeWallet]
+    [activeWallet, privySignTransaction]
   );
 
   // Sign and send via Privy wallet
   const signAndSendTransaction = useCallback(
     async (tx: Transaction | VersionedTransaction): Promise<string> => {
-      if (!activeWallet) throw new Error("No wallet connected");
-      const signed = await activeWallet.signTransaction(tx as Transaction);
-      const raw = signed.serialize();
+      const signed = await signTransactionFn(tx);
+      const raw = (signed as Transaction).serialize
+        ? (signed as Transaction).serialize()
+        : (signed as VersionedTransaction).serialize();
       return await connection.sendRawTransaction(raw, {
         skipPreflight: false,
         preflightCommitment: "confirmed",
       });
     },
-    [activeWallet, connection]
+    [signTransactionFn, connection]
   );
 
   // Legacy sendTransaction (SOL transfer by address + amount)
@@ -393,7 +395,7 @@ export function BagsFunWalletProvider({ children }: { children: ReactNode }) {
 
   const balanceUsd = balance !== null && solPrice !== null ? balance * solPrice : null;
 
-  const selectedWalletName = activeWallet?.walletClientType || null;
+  const selectedWalletName = (activeWallet as any)?.walletClientType || null;
 
   return (
     <WalletContext.Provider
@@ -421,7 +423,7 @@ export function BagsFunWalletProvider({ children }: { children: ReactNode }) {
         isRefreshing,
         sendTransaction,
         isSending,
-        signTransaction,
+        signTransactionFn,
         signAndSendTransaction,
         connection,
       }}

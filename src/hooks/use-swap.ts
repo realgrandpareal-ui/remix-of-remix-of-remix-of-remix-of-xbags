@@ -177,7 +177,7 @@ export function useCreateTransaction() {
 // ── useSwap (combines everything) ──────────────────────
 
 export function useSwap() {
-  const { publicKey, signTransaction, connection } = useWallet();
+  const { publicKey, signTransactionFn, connection } = useWallet();
 
   const {
     quote,
@@ -210,7 +210,7 @@ export function useSwap() {
         setSwapError("Please connect your wallet first");
         return null;
       }
-      if (!signTransaction) {
+      if (!signTransactionFn) {
         setSwapError("Wallet does not support transaction signing");
         return null;
       }
@@ -239,7 +239,7 @@ export function useSwap() {
 
         const txBytes = bs58.decode(result.swapTransaction);
         const tx = VersionedTransaction.deserialize(txBytes);
-        const signedTx = await signTransaction(tx);
+        const signedTx = await signTransactionFn(tx);
 
         const signature = await connection.sendRawTransaction(
           (signedTx as VersionedTransaction).serialize(),
@@ -249,7 +249,7 @@ export function useSwap() {
           }
         );
 
-        // Confirm with lastValidBlockHeight if available
+        // Confirm
         if (result.lastValidBlockHeight) {
           await connection.confirmTransaction(
             {
@@ -278,7 +278,7 @@ export function useSwap() {
         setIsSigning(false);
       }
     },
-    [publicKey, signTransaction, quote, isQuoteStale, fetchQuote, createTransaction, connection, clearQuote]
+    [publicKey, signTransactionFn, quote, isQuoteStale, fetchQuote, createTransaction, connection, clearQuote]
   );
 
   const reset = useCallback(() => {
